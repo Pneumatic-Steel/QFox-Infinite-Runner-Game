@@ -380,6 +380,7 @@ initFirebase();
 
 const FOX_HEAD_URL   = 'head.png';
 const OBSTACLE_URL   = 'orb.png';
+const HALO_URL       = 'halo.png';
 const FLOOR_IMAGE_URL= 'floor.png';
 const BACKGROUND_VIDEO_URL = 'background.mp4';
 const MUSIC_URL      = 'music.wav';
@@ -532,21 +533,38 @@ function createObstacle(laneIndex) {
   const laneX = lanePositions[laneIndex];
   const startZ = -120;
   const size = 1.8;
-  const geo = new THREE.PlaneGeometry(size, size);
   
-  // Orb material with MAX emissive intensity for bright golden halo
-  const mat = new THREE.MeshBasicMaterial({ 
-    color:0xffffff, 
-    transparent:true, 
-    side: THREE.DoubleSide,
-    emissive: 0xffcc00, // Golden glow color
-    emissiveIntensity: 16.0
+  // Create the orb
+  const orbGeo = new THREE.PlaneGeometry(size, size);
+  const orbMat = new THREE.MeshBasicMaterial({ 
+    color: 0xffffff, 
+    transparent: true, 
+    side: THREE.DoubleSide
   });
-
-  const orb = new THREE.Mesh(geo, mat);
+  const orb = new THREE.Mesh(orbGeo, orbMat);
+  
+  // Create the halo (slightly larger than the orb)
+  const haloSize = size * 1.4; // 40% larger than the orb
+  const haloGeo = new THREE.PlaneGeometry(haloSize, haloSize);
+  const haloMat = new THREE.MeshBasicMaterial({ 
+    color: 0xffcc00, 
+    transparent: true, 
+    opacity: 0.7,
+    side: THREE.DoubleSide
+  });
+  const halo = new THREE.Mesh(haloGeo, haloMat);
+  
+  // Position both at the same location
   orb.position.set(laneX, 1.35, startZ);
+  halo.position.set(laneX, 1.35, startZ);
+  
+  // Set user data
   orb.userData.lane = laneIndex;
   orb.userData.billboard = true;
+  halo.userData.billboard = true;
+  halo.userData.isHalo = true;
+  
+  // Load textures
   textureLoader.load(OBSTACLE_URL, tex => {
     tex.encoding = THREE.sRGBEncoding;
     tex.minFilter = THREE.LinearMipMapLinearFilter;
@@ -554,9 +572,65 @@ function createObstacle(laneIndex) {
     orb.material.map = tex;
     orb.material.needsUpdate = true;
   });
-  orb.renderOrder = 1;
-  obstacles.push(orb);
+  
+  textureLoader.load(HALO_URL, tex => {
+    tex.encoding = THREE.sRGBEncoding;
+    tex.minFilter = THREE.LinearMipMapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    halo.material.map = tex;
+    halo.material.needsUpdate = true;
+  });
+  
+  // Set render order - halo behind orb
+  orb.renderOrder = 2;
+  halo.renderOrder = 1;
+  
+  // Store both in obstacles array
+  const obstacleGroup = {
+    orb: orb,
+    halo: halo,
+    lane: laneIndex
+  };
+  
+  obstacles.push(obstacleGroup);
   scene.add(orb);
+  scene.add(halo);
+  
+  // Add pulsing animation to the halo
+  animateHalo(halo);
+}
+
+// Function to animate the halo with a pulsing effect
+function animateHalo(halo) {
+  const pulseSpeed = 0.01;
+  const minScale = 0.9;
+  const maxScale = 1.1;
+  let scaleDirection = 1;
+  
+  // Store the animation function in the halo's userData
+  halo.userData.animate = function(deltaMultiplier) {
+    // Calculate scale factor based on delta time
+    const scaleFactor = pulseSpeed * deltaMultiplier;
+    
+    // Update scale
+    halo.scale.x += scaleFactor * scaleDirection;
+    halo.scale.y += scaleFactor * scaleDirection;
+    
+    // Reverse direction if at limits
+    if (halo.scale.x >= maxScale || halo.scale.x <= minScale) {
+      scaleDirection *= -1;
+    }
+    
+    // Clamp scale values
+    halo.scale.x = Math.max(minScale, Math.min(maxScale, halo.scale.x));
+    halo.scale.y = Math.max(minScale, Math.min(maxScale, halo.scale.y));
+    
+    // Also pulse the opacity for extra glow effect
+    const opacityRange = 0.3;
+    const baseOpacity = 0.7;
+    const opacity = baseOpacity + Math.sin(performance.now() * 0.005) * opacityRange;
+    halo.material.opacity = Math.max(0.4, Math.min(0.9, opacity));
+  };
 }
 
 /* GAME CONTROL */
@@ -566,13 +640,23 @@ function startGame(){
   }
   
   // Clean up old obstacles properly
-  obstacles.forEach(obs => {
-    if (obs.geometry) obs.geometry.dispose();
-    if (obs.material) {
-      if (obs.material.map) obs.material.map.dispose();
-      obs.material.dispose();
+  obstacles.forEach(obstacleGroup => {
+    if (obstacleGroup.orb) {
+      if (obstacleGroup.orb.geometry) obstacleGroup.orb.geometry.dispose();
+      if (obstacleGroup.orb.material) {
+        if (obstacleGroup.orb.material.map) obstacleGroup.orb.material.map.dispose();
+        obstacleGroup.orb.material.dispose();
+      }
+      scene.remove(obstacleGroup.orb);
     }
-    scene.remove(obs);
+    if (obstacleGroup.halo) {
+      if (obstacleGroup.halo.geometry) obstacleGroup.halo.geometry.dispose();
+      if (obstacleGroup.halo.material) {
+        if (obstacleGroup.halo.material.map) obstacleGroup.halo.material.map.dispose();
+        obstacleGroup.halo.material.dispose();
+      }
+      scene.remove(obstacleGroup.halo);
+    }
   });
   obstacles = [];
 
@@ -623,17 +707,29 @@ function moveFox(newLane){
 function updateObstacles(deltaMultiplier){
   if (!foxPlayer) return;
   gameSpeed += SPEED_INCREASE_RATE * deltaMultiplier;
+  
   for (let i = obstacles.length - 1; i >= 0; i--){
-    const obs = obstacles[i];
-    obs.position.z += gameSpeed * deltaMultiplier;
-    // Collision detection
+    const obstacleGroup = obstacles[i];
+    const orb = obstacleGroup.orb;
+    const halo = obstacleGroup.halo;
+    
+    // Move both orb and halo
+    orb.position.z += gameSpeed * deltaMultiplier;
+    halo.position.z += gameSpeed * deltaMultiplier;
+    
+    // Animate the halo
+    if (halo.userData.animate) {
+      halo.userData.animate(deltaMultiplier);
+    }
+    
+    // Collision detection (only check the orb)
     const foxZ = foxPlayer.position.z;
-    const obsZ = obs.position.z;
+    const obsZ = orb.position.z;
     const collisionRange = 0.9;
     if (obsZ >= foxZ - collisionRange && obsZ <= foxZ + collisionRange) {
-      if (obs.userData.lane === currentLane) {
+      if (obstacleGroup.lane === currentLane) {
         const foxX = foxPlayer.position.x;
-        const obsX = obs.position.x;
+        const obsX = orb.position.x;
         const lateralRange = 0.9;
         if (Math.abs(foxX - obsX) < lateralRange) {
           doGameOver();
@@ -641,17 +737,26 @@ function updateObstacles(deltaMultiplier){
         }
       }
     }
-    if (obsZ > foxZ + 2 && !obs.userData.scored) {
-      obs.userData.scored = true;
+    
+    // Score when passing
+    if (obsZ > foxZ + 2 && !orb.userData.scored) {
+      orb.userData.scored = true;
       score += 10;
       const scoreEl = document.getElementById('score-display');
       if (scoreEl) scoreEl.textContent = `Score: ${score}`;
     }
+    
+    // Remove when too far
     if (obsZ > 80) {
-      try { scene.remove(obs); } catch(e){}
+      try { 
+        scene.remove(orb); 
+        scene.remove(halo);
+      } catch(e){}
       obstacles.splice(i,1);
     }
   }
+  
+  // Spawn new obstacles
   obstacleSpawnTimer++;
   const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140));
   if (obstacleSpawnTimer >= spawnRate) {
@@ -771,11 +876,14 @@ function animate(){
     // PHASE FLOOR AND BACKGROUND COLOR
     updateFloorAndBackground();
 
-    // Billboard obstacles
+    // Billboard obstacles and halos
     if (camera) {
-      for (let obs of obstacles) {
-        if (obs.userData && obs.userData.billboard && obs.lookAt) {
-          obs.lookAt(camera.position);
+      for (let obstacleGroup of obstacles) {
+        if (obstacleGroup.orb.userData && obstacleGroup.orb.userData.billboard && obstacleGroup.orb.lookAt) {
+          obstacleGroup.orb.lookAt(camera.position);
+        }
+        if (obstacleGroup.halo.userData && obstacleGroup.halo.userData.billboard && obstacleGroup.halo.lookAt) {
+          obstacleGroup.halo.lookAt(camera.position);
         }
       }
     }
