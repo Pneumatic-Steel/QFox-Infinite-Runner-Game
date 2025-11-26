@@ -368,8 +368,6 @@ const MUSIC_URL      = 'music.wav';
 
 let bgm = null;
 function initializeMusic() {
-  // ⭐️ FIX 3: Music object created, but not auto-played or listener-attached here. 
-  // Playback will be attempted in startGame() on user input.
   bgm = new Audio(MUSIC_URL);
   bgm.loop = true;
   bgm.volume = 0.7;
@@ -468,13 +466,13 @@ function createObstacle(laneIndex) {
   const size = 1.8;
   const geo = new THREE.PlaneGeometry(size, size);
   
-  // ⭐️ FIX 1: Increased emissive intensity for brighter glow/halo ⭐️
+  // 🔥 FIX 1: Significantly increased emissive intensity for a bright golden halo
   const mat = new THREE.MeshBasicMaterial({ 
     color:0xffffff, 
     transparent:true, 
     side: THREE.DoubleSide,
     emissive: 0xffcc00, // Golden glow color
-    emissiveIntensity: 1.5 // Increased from 0.5 to 1.5
+    emissiveIntensity: 8.0 // Increased from 1.5 to 8.0
   });
 
   const orb = new THREE.Mesh(geo, mat);
@@ -499,11 +497,9 @@ function startGame(){
     init();
   }
   
-  // ⭐️ FIX 3: Attempt to play music on game start (which follows user input) ⭐️
-  if (bgm) {
+  // 🎧 FIX 3: Attempt to play music on a user gesture (which leads to startGame)
+  if (bgm && bgm.paused) {
     bgm.play().catch(error => {
-      // Catch error if play failed (e.g., still no user gesture)
-      // On some mobile devices, this might still be blocked, but it is the best practice fix.
       console.warn("Audio playback failed (usually a mobile browser restriction):", error.message);
     });
   }
@@ -616,7 +612,7 @@ function onKeyDown(e){
   }
   if (e.target && e.target.tagName === 'INPUT') return;
   if (!gameActive) {
-    if (e.code === 'KeyR' || e.code === 'Space') startGame();
+    if (e.code === 'KeyR' || e.code === 'Space' || e.code === 'KeyA' || e.code === 'KeyD' || e.code.startsWith('Arrow')) startGame();
     return;
   }
   if (e.code === 'KeyA' || e.code === 'ArrowLeft') moveFox(currentLane - 1);
@@ -632,13 +628,16 @@ function onTouchEnd(e){
   if (!e.changedTouches || e.changedTouches.length === 0) return;
   const dx = e.changedTouches[0].clientX - touchStartX;
   const dy = e.changedTouches[0].clientY - touchStartY;
+  
+  if (!gameActive && (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) < SWIPE_THRESHOLD)) {
+    // Start game on any swipe or simple tap
+    startGame();
+    return;
+  }
+
   if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
-    if (!gameActive) { startGame(); return; }
     if (dx > 0) moveFox(currentLane + 1);
     else moveFox(currentLane - 1);
-  } else if (!gameActive && Math.abs(dy) < 50) {
-    // Treat simple tap as start game
-    startGame();
   }
 }
 
@@ -662,11 +661,11 @@ function init(){
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
   
-  // ⭐️ FIX 2: Increased Ambient Light intensity (3 -> 5) for a brighter scene ⭐️
-  scene.add(new THREE.AmbientLight(0xffffff, 5)); 
+  // 💡 FIX 2: Increased Ambient Light intensity (5 -> 10)
+  scene.add(new THREE.AmbientLight(0xffffff, 10)); 
   
-  // ⭐️ FIX 2: Increased SpotLight intensity (3 -> 5) ⭐️
-  const spot = new THREE.SpotLight(0xffffff, 5, 50, Math.PI/6, 0.3);
+  // 💡 FIX 2: Increased SpotLight intensity (5 -> 10)
+  const spot = new THREE.SpotLight(0xffffff, 10, 50, Math.PI/6, 0.3);
   spot.position.set(0, 10, 10);
   scene.add(spot);
   createFox();
@@ -685,7 +684,7 @@ function init(){
     const lb = document.getElementById('leaderboard-screen');
     if (lb) { lb.style.opacity = 0; setTimeout(()=> lb.style.display = 'none', 300); }
   });
-  startGame();
+  // 🎧 FIX 3: REMOVED startGame() call from init(). Game must now be started by user input.
 }
 
 function onWindowResize(){
@@ -767,7 +766,7 @@ function updateFloorAndBackground() {
 window.addEventListener('load', () => {
   initializeMusic();
   init();
-  animate();
+  animate(); // Starts the rendering loop, but the game is inactive until user input
 });
 </script>
 </body>
