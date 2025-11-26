@@ -30,10 +30,10 @@
       background: rgba(0,0,0,0.9); color:#f3f4f6; flex-direction:column; opacity:0; transition:opacity .4s;
       text-align:center; overflow-y:auto; padding:20px;
     }
-    .button-group { display:flex; gap:15px; margin-top:20px; }
+    .button-group { display:flex; gap:15px; margin-top:20px; pointer-events:auto; }
     .restart-button, .close-button{
       padding:12px 22px; border-radius:.5rem; font-weight:800; border:none; cursor:pointer;
-      background:#fcd34d; color:#111827; pointer-events:auto; transition: all 0.2s;
+      background:#fcd34d; color:#111827; transition: all 0.2s;
     }
     .restart-button:hover, .close-button:hover { background:#fbbf24; transform:translateY(-2px); }
 
@@ -57,7 +57,6 @@
       background:#10b981; color:#064e3b; padding:10px 30px; border-radius:6px;
       font-weight:800; border:none; cursor:pointer; font-size:1.2rem; transition:all 0.2s;
     }
-    #submit-score-btn:hover { background:#34d399; transform:scale(1.05); }
     #submit-score-btn:disabled { background:#4b5563; cursor:not-allowed; transform:none; }
 
     #leaderboard-content {
@@ -100,14 +99,14 @@
     </div>
 
     <div class="button-group">
-      <button class="restart-button" onclick="startGame()">RESTART</button>
-      <button class="restart-button" onclick="window.showLeaderboard()">LEADERBOARD</button>
+      <button id="restart-btn" class="restart-button">RESTART</button>
+      <button id="leaderboard-btn" class="restart-button">LEADERBOARD</button>
     </div>
     <p style="margin-top:12px; color:#9ca3af; font-size:0.9rem;">User ID: <span id="user-id-display">Anonymous</span></p>
   </div>
 
   <div id="leaderboard-screen">
-    <button class="close-button" onclick="document.getElementById('leaderboard-screen').style.display='none';" style="position:absolute; top:20px; right:20px; padding:8px 16px; font-size:1.1rem;">✕ CLOSE</button>
+    <button id="close-leaderboard" class="close-button" style="position:absolute; top:20px; right:20px; padding:8px 16px; font-size:1.1rem;">✕ CLOSE</button>
     <h2 style="font-size:3rem; color:#10b981; margin-bottom:20px; font-weight:900;">TOP 100 RUNNERS</h2>
     <div id="leaderboard-content">
       <div class="leaderboard-entry header">
@@ -152,7 +151,8 @@ async function initFirebase() {
       if (currentUser) {
         user = currentUser;
         window.qfoxUserId = user.uid.substring(0, 8);
-        document.getElementById('user-id-display').textContent = window.qfoxUserId;
+        const uidEl = document.getElementById('user-id-display');
+        if (uidEl) uidEl.textContent = window.qfoxUserId;
         isFirebaseReady = true;
         loadHighScore();
       } else {
@@ -169,7 +169,8 @@ async function loadHighScore() {
     const localScore = localStorage.getItem(HIGH_SCORE_KEY);
     if (localScore !== null) {
       window.highScoreValue = parseInt(localScore, 10) || 0;
-      document.getElementById('high-score-display').textContent = `High Score: ${window.highScoreValue}`;
+      const hEl = document.getElementById('high-score-display');
+      if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
     }
   } catch (e) {}
 
@@ -182,7 +183,8 @@ async function loadHighScore() {
       const firebaseScore = docSnap.data().highScore || 0;
       if (firebaseScore > window.highScoreValue) {
         window.highScoreValue = firebaseScore;
-        document.getElementById('high-score-display').textContent = `High Score: ${window.highScoreValue}`;
+        const hEl = document.getElementById('high-score-display');
+        if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
         try { localStorage.setItem(HIGH_SCORE_KEY, window.highScoreValue.toString()); } catch (e) {}
       }
     }
@@ -192,20 +194,21 @@ async function loadHighScore() {
 window.handleGameOver = async function(finalScore) {
   if (finalScore > window.highScoreValue) {
     window.highScoreValue = finalScore;
-    document.getElementById('high-score-display').textContent = `High Score: ${window.highScoreValue}`;
+    const hEl = document.getElementById('high-score-display');
+    if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
     
     try { localStorage.setItem(HIGH_SCORE_KEY, finalScore.toString()); } catch (e) {}
 
     if (isFirebaseReady && user) {
       try {
         const scoreDocRef = doc(db, 'users', user.uid);
-        setDoc(scoreDocRef, { highScore: finalScore, timestamp: serverTimestamp() }, { merge: true });
+        await setDoc(scoreDocRef, { highScore: finalScore, timestamp: serverTimestamp() }, { merge: true });
       } catch (e) { console.error("Save error:", e); }
     }
   }
 
   const form = document.getElementById('initials-form');
-  form.style.display = 'none';
+  if (form) form.style.display = 'none';
 
   if (isFirebaseReady && user) {
     try {
@@ -233,9 +236,11 @@ function showInitialsInput(score) {
   const input = document.getElementById('initials-input');
   const btn = document.getElementById('submit-score-btn');
   
+  if (!form || !input || !btn) return;
+  
   form.style.display = 'flex';
   input.value = '';
-  input.focus();
+  try { input.focus(); } catch(e){}
   btn.textContent = "SUBMIT";
   btn.disabled = false;
   form.dataset.score = score;
@@ -245,11 +250,12 @@ document.getElementById('submit-score-btn').addEventListener('click', async () =
   const form = document.getElementById('initials-form');
   const input = document.getElementById('initials-input');
   const btn = document.getElementById('submit-score-btn');
+  if (!form || !input || !btn) return;
   
   let initials = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
   if (!initials) initials = "AAA";
   
-  const score = parseInt(form.dataset.score);
+  const score = parseInt(form.dataset.score || '0');
 
   btn.textContent = "SAVING...";
   btn.disabled = true;
@@ -266,7 +272,7 @@ document.getElementById('submit-score-btn').addEventListener('click', async () =
       
       btn.textContent = "SAVED!";
       setTimeout(() => {
-        form.style.display = 'none';
+        if (form) form.style.display = 'none';
         window.showLeaderboard();
       }, 800);
       
@@ -275,6 +281,10 @@ document.getElementById('submit-score-btn').addEventListener('click', async () =
       btn.textContent = "ERROR";
       setTimeout(() => { btn.disabled = false; btn.textContent = "RETRY"; }, 2000);
     }
+  } else {
+    // If Firebase not ready, hide form and show leaderboard (local-only)
+    btn.textContent = "OFFLINE";
+    setTimeout(()=>{ if (form) form.style.display = 'none'; window.showLeaderboard(); }, 700);
   }
 });
 
@@ -286,8 +296,11 @@ window.showLeaderboard = async function() {
   const screen = document.getElementById('leaderboard-screen');
   const list = document.getElementById('leaderboard-list');
   
+  if (!screen || !list) return;
+  
   screen.style.display = 'flex';
-  screen.style.opacity = 1; 
+  // slight delay to allow CSS transition
+  requestAnimationFrame(()=> screen.style.opacity = 1);
   list.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
 
   if (!isFirebaseReady) {
@@ -306,8 +319,8 @@ window.showLeaderboard = async function() {
     }
 
     let html = '';
-    snapshot.docs.forEach((doc, index) => {
-      const data = doc.data();
+    snapshot.docs.forEach((docSnap, index) => {
+      const data = docSnap.data();
       const rank = index + 1;
       const initials = data.initials || '???';
       const score = data.score || 0;
@@ -348,11 +361,12 @@ function initializeMusic() {
   bgm.loop = true;
   bgm.volume = 0.7;
 
-  const unlock = () => {
+  // Use a named function so we can remove the listeners cleanly
+  function unlock() {
     bgm.play().catch(()=>{});
     document.removeEventListener('keydown', unlock);
     document.removeEventListener('touchstart', unlock);
-  };
+  }
 
   document.addEventListener('keydown', unlock, { passive: true });
   document.addEventListener('touchstart', unlock, { passive: true });
@@ -360,7 +374,7 @@ function initializeMusic() {
 
 /* THREE / GAME GLOBALS */
 let scene, camera, renderer;
-let foxPlayer;
+let foxPlayer = null;
 let floorTexture = null;
 let floorMesh = null;
 
@@ -395,24 +409,29 @@ const textureLoader = new THREE.TextureLoader();
 
 /* BACKGROUND VIDEO */
 function setupVideoBackground(){
-  const vid = document.createElement('video');
-  vid.src = BACKGROUND_VIDEO_URL;
-  vid.loop = true;
-  vid.muted = true;
-  vid.playsInline = true;
-  vid.play().catch(()=>{});
+  if (!scene) return;
+  try {
+    const vid = document.createElement('video');
+    vid.src = BACKGROUND_VIDEO_URL;
+    vid.loop = true;
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.play().catch(()=>{});
 
-  const vtex = new THREE.VideoTexture(vid);
-  vtex.minFilter = THREE.LinearFilter;
-  vtex.magFilter = THREE.LinearFilter;
+    const vtex = new THREE.VideoTexture(vid);
+    vtex.minFilter = THREE.LinearFilter;
+    vtex.magFilter = THREE.LinearFilter;
 
-  scene.background = vtex;
+    scene.background = vtex;
+  } catch (e) {
+    console.warn('Video background failed:', e);
+  }
 }
 
 /* CREATE FOX */
 function createFox(){
   const geo = new THREE.PlaneGeometry(1.8, 1.8);
-  const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff });
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent:true });
 
   foxPlayer = new THREE.Mesh(geo, mat);
   textureLoader.load(FOX_HEAD_URL, (tex)=>{
@@ -450,8 +469,9 @@ function createTrack(){
 
 /* CREATE OBSTACLES */
 function createObstacle(laneIndex) {
+  if (!scene) return;
   const laneX = lanePositions[laneIndex];
-  const startZ = -300;
+  const startZ = -120; // closer spawn so it's visible
   const size = 1.8;
 
   const geo = new THREE.PlaneGeometry(size, size);
@@ -478,30 +498,45 @@ function createObstacle(laneIndex) {
 
 /* GAME CONTROL */
 function startGame(){
+  // Reset safely
+  if (!scene || !renderer || !camera) {
+    // If the world isn't ready yet, try to init and then start after small delay
+    init(); // safe since init checks for things internally
+  }
+
   gameActive = true;
   score = 0;
   gameSpeed = BASE_GAME_SPEED;
   currentLane = 1;
   if (foxPlayer) foxPlayer.position.x = lanePositions[currentLane];
 
-  obstacles.forEach(o=>scene.remove(o));
+  obstacles.forEach(o=>{ try { scene.remove(o); } catch(e){} });
   obstacles = [];
   obstacleSpawnTimer = 0;
 
-  scoreDisplay.textContent = `Score: ${score}`;
-  gameOverScreen.style.display = 'none';
-  gameOverScreen.style.opacity = 0;
-  document.getElementById('leaderboard-screen').style.display = 'none';
-  document.getElementById('initials-form').style.display = 'none';
+  const scoreEl = document.getElementById('score-display');
+  if (scoreEl) scoreEl.textContent = `Score: ${score}`;
+  if (gameOverScreen) {
+    gameOverScreen.style.display = 'none';
+    gameOverScreen.style.opacity = 0;
+  }
+  const lb = document.getElementById('leaderboard-screen');
+  if (lb) lb.style.display = 'none';
+  const initialsForm = document.getElementById('initials-form');
+  if (initialsForm) initialsForm.style.display = 'none';
 }
 
 function moveFox(newLane){
   if (!gameActive) return;
+  if (!foxPlayer) return;
   if (newLane < 0 || newLane > 2) return;
   if (newLane === currentLane) return;
 
   currentLane = newLane;
   const targetX = lanePositions[currentLane];
+
+  // Kill previous tweens acting directly on position to avoid piling up tweens
+  TWEEN.removeAll();
 
   new TWEEN.Tween(foxPlayer.position)
     .to({ x: targetX }, 150)
@@ -510,6 +545,7 @@ function moveFox(newLane){
 }
 
 function updateObstacles(deltaMultiplier){
+  if (!foxPlayer) return;
   gameSpeed += SPEED_INCREASE_RATE * deltaMultiplier;
 
   for (let i = obstacles.length - 1; i >= 0; i--){
@@ -539,12 +575,13 @@ function updateObstacles(deltaMultiplier){
     if (obsZ > foxZ + 2 && !obs.userData.scored) {
       obs.userData.scored = true;
       score += 10;
-      scoreDisplay.textContent = `Score: ${score}`;
+      const scoreEl = document.getElementById('score-display');
+      if (scoreEl) scoreEl.textContent = `Score: ${score}`;
     }
 
     // Remove obstacles that are far behind camera
     if (obsZ > 80) {
-      scene.remove(obs);
+      try { scene.remove(obs); } catch(e){}
       obstacles.splice(i,1);
     }
   }
@@ -558,31 +595,35 @@ function updateObstacles(deltaMultiplier){
 }
 
 function doGameOver(){
+  if (!gameActive) return;
   gameActive = false;
   finalScoreEl.textContent = score;
-  gameOverScreen.style.display = 'flex';
+  if (gameOverScreen) {
+    gameOverScreen.style.display = 'flex';
+  }
 
   if (typeof window.handleGameOver === 'function') {
     window.handleGameOver(score);
   }
 
+  // Fade in panel
   new TWEEN.Tween({o:0}).to({o:1}, 450).onUpdate(obj=>{
-    gameOverScreen.style.opacity = obj.o;
+    if (gameOverScreen) gameOverScreen.style.opacity = obj.o;
   }).start();
 }
 
 /* INPUT HANDLING */
 function onKeyDown(e){
   const leaderboardScreen = document.getElementById('leaderboard-screen');
-  
-  if (leaderboardScreen.style.display === 'flex') {
+  if (leaderboardScreen && leaderboardScreen.style.display === 'flex') {
     if (e.code === 'Escape' || e.code === 'KeyL') {
       leaderboardScreen.style.display = 'none';
+      leaderboardScreen.style.opacity = 0;
     }
     return;
   }
 
-  if (e.target.tagName === 'INPUT') return;
+  if (e.target && e.target.tagName === 'INPUT') return;
 
   if (!gameActive) {
     if (e.code === 'KeyR' || e.code === 'Space') startGame();
@@ -610,7 +651,11 @@ function onTouchEnd(e){
 }
 
 /* INIT + ANIMATE */
+let hasInited = false;
 function init(){
+  if (hasInited) return;
+  hasInited = true;
+
   scene = new THREE.Scene();
   setupVideoBackground();
 
@@ -636,6 +681,18 @@ function init(){
   document.addEventListener('touchstart', onTouchStart, {passive:true});
   document.addEventListener('touchend', onTouchEnd, {passive:true});
 
+  // Hook up UI buttons (moved from inline)
+  const restartBtn = document.getElementById('restart-btn');
+  if (restartBtn) restartBtn.addEventListener('click', () => startGame());
+  const leaderboardBtn = document.getElementById('leaderboard-btn');
+  if (leaderboardBtn) leaderboardBtn.addEventListener('click', () => window.showLeaderboard());
+  const closeLb = document.getElementById('close-leaderboard');
+  if (closeLb) closeLb.addEventListener('click', () => {
+    const lb = document.getElementById('leaderboard-screen');
+    if (lb) { lb.style.opacity = 0; setTimeout(()=> lb.style.display = 'none', 300); }
+  });
+
+  // Start paused — call startGame explicitly after everything ready
   startGame();
 }
 
@@ -661,28 +718,41 @@ function animate(){
     updateObstacles(deltaMultiplier);
 
     runningTime += 0.11 * deltaMultiplier;
-    foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
+    if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
 
     if (floorTexture) {
       floorTexture.offset.y += gameSpeed * 0.05 * deltaMultiplier;
     }
 
-    for (let obs of obstacles) {
-      if (obs.userData && obs.userData.billboard) {
-        obs.lookAt(camera.position);
+    if (camera) {
+      for (let obs of obstacles) {
+        if (obs.userData && obs.userData.billboard && obs.lookAt) {
+          obs.lookAt(camera.position);
+        }
       }
     }
   }
 
-  renderer.render(scene, camera);
+  if (renderer && scene && camera) renderer.render(scene, camera);
 }
 
 /* START */
-window.onload = () => {
+window.addEventListener('load', () => {
   initializeMusic();
   init();
   animate();
+});
+
+// Expose a couple of functions for external UI if necessary
+window.startGame = startGame;
+window.showLeaderboard = window.showLeaderboard || function(){ // fallback to avoid override
+  const lb = document.getElementById('leaderboard-screen');
+  if (lb) {
+    lb.style.display = 'flex';
+    requestAnimationFrame(()=> lb.style.opacity = 1);
+  }
 };
+
 </script>
 </body>
 </html>
