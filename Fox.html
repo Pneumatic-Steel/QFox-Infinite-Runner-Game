@@ -130,13 +130,25 @@ let isFirebaseReady = false;
 window.highScoreValue = 0;
 window.qfoxUserId = 'Anonymous';
 
-/* Define color schemes for floor & background phase transition */
+/* Define color schemes for floor & background phase transition (VIBRANT FOG EDITION) */
 const colorSchemes = [
-  { floor: new THREE.Color('#0d1117'), bg: '#0d1117' }, // initial dark
-  { floor: new THREE.Color('#1a202c'), bg: '#1a202c' }, // darker blue
-  { floor: new THREE.Color('#374151'), bg: '#374151' }, // blue-gray
-  { floor: new THREE.Color('#111827'), bg: '#111827' }, // darker
-  // Add more as desired
+  // LEVEL 1 (Score 0-249): Dark Blue/Black (Initial Look)
+  { floor: new THREE.Color('#0d1117'), fog: new THREE.Color('#0d1117') }, 
+  
+  // LEVEL 2 (Score 250-499): Vibrant Red
+  { floor: new THREE.Color('#8C0000'), fog: new THREE.Color('#FF0000') }, 
+  
+  // LEVEL 3 (Score 500-749): Bright Green
+  { floor: new THREE.Color('#006400'), fog: new THREE.Color('#00FF00') }, 
+  
+  // LEVEL 4 (Score 750-999): Electric Blue
+  { floor: new THREE.Color('#000080'), fog: new THREE.Color('#00FFFF') }, 
+  
+  // LEVEL 5 (Score 1000-1249): Hot Pink/Magenta
+  { floor: new THREE.Color('#8B008B'), fog: new THREE.Color('#FF00FF') },
+  
+  // LEVEL 6 (Score 1250+): Orange/Gold
+  { floor: new THREE.Color('#A0522D'), fog: new THREE.Color('#FF8C00') }, 
 ];
 
 let currentColorIndex = 0;
@@ -615,6 +627,11 @@ function init(){
   if (hasInited) return;
   hasInited = true;
   scene = new THREE.Scene();
+  
+  // ⭐️ FIX 1: Initialize Fog for smooth background color transition ⭐️
+  const initialFogColor = colorSchemes[0].fog;
+  scene.fog = new THREE.Fog(initialFogColor, 40, 150); // Color, near distance, far distance
+  
   setupVideoBackground();
   camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.set(0, 3.5, 10);
@@ -682,33 +699,41 @@ function animate(){
   if (renderer && scene && camera) renderer.render(scene, camera);
 }
 
-/* --- Color phase transition for floor and background --- */
+/* --- Color phase transition for floor and background (FOG EDITION) --- */
 function updateFloorAndBackground() {
+  // Calculates which level (color scheme index) we are in (250 points per level)
   const levelIndex = Math.floor(score / 250);
-  const nextIndex = Math.min(levelIndex + 1, colorSchemes.length - 1);
-  const t = (score % 250) / 250; // progress between current and next
+  
+  // Determine the next color scheme to transition towards
+  const nextIndex = Math.min(levelIndex + 1, colorSchemes.length - 1); 
+  
+  // 't' is the progress (0.0 to 1.0) through the current level's transition
+  const t = (score % 250) / 250; 
 
-  // Interpolate floor color
+  
+  // --- FLOOR COLOR TRANSITION ---
   const currentFloorColor = colorSchemes[levelIndex].floor;
   const nextFloorColor = colorSchemes[nextIndex].floor;
   const interpolatedFloorColor = currentFloorColor.clone().lerp(nextFloorColor, t);
 
-  // Apply floor color
   if (floorMesh && floorMesh.material) {
     floorMesh.material.color = interpolatedFloorColor;
     floorMesh.material.needsUpdate = true;
   }
+  
+  
+  // ⭐️ FIX 2: FOG (SCENE TINT) COLOR TRANSITION ⭐️
+  const currentFogColor = colorSchemes[levelIndex].fog;
+  const nextFogColor = colorSchemes[nextIndex].fog;
+  // Lerp is the smooth transition function
+  const interpolatedFogColor = currentFogColor.clone().lerp(nextFogColor, t);
 
-  // Interpolate background color
-  const currentBgColor = new THREE.Color(colorSchemes[levelIndex].bg);
-  const nextBgColor = new THREE.Color(colorSchemes[nextIndex].bg);
-  const interpolatedBgColor = currentBgColor.clone().lerp(nextBgColor, t);
-
-  // Apply background color if using scene.background as color
-  // If you use video background, you could switch to a color overlay or change scene.background color
-  // For simplicity, if background is a video, you might overlay a semi-transparent color
-  // Here, we'll just set scene.background to a color for demo
-  scene.background = new THREE.Color(interpolatedBgColor.getHex());
+  if (scene.fog) {
+    // Apply the smoothly interpolated color to the FOG
+    scene.fog.color = interpolatedFogColor;
+  }
+  
+  // NOTE: The line setting scene.background to a solid color has been removed.
 }
 
 window.addEventListener('load', () => {
