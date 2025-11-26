@@ -603,7 +603,7 @@ function createObstacle(laneIndex) {
 // Function to animate the halo with a pulsing effect
 function animateHalo(halo) {
   const pulseSpeed = 0.01;
-  const minScale = 0.8;
+  const minScale = 0.4;
   const maxScale = 1.1;
   let scaleDirection = 1;
   
@@ -626,7 +626,7 @@ function animateHalo(halo) {
     halo.scale.y = Math.max(minScale, Math.min(maxScale, halo.scale.y));
     
     // Also pulse the opacity for extra glow effect
-    const opacityRange = 0.3;
+    const opacityRange = 0.4;
     const baseOpacity = 0.7;
     const opacity = baseOpacity + Math.sin(performance.now() * 0.005) * opacityRange;
     halo.material.opacity = Math.max(0.4, Math.min(0.9, opacity));
@@ -936,5 +936,6 @@ window.addEventListener('load', () => {
 </script>
 </body>
 </html>
+
 
 
