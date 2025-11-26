@@ -20,6 +20,17 @@
       background: rgba(0,0,0,0.7); padding:8px 16px; border-radius:8px; font-size:1.1rem; font-weight:700;
       border:2px solid #3b82f6; min-width:140px; text-align:center;
     }
+    #mobile-controls{
+      position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:10;
+      background: rgba(0,0,0,0.7); padding:12px 16px; border-radius:8px; color:#fcd34d; border:2px solid #3b82f6;
+      pointer-events:none; font-weight:700; display:none; gap:20px; align-items:center;
+    }
+    .mobile-btn {
+      background: rgba(59, 130, 246, 0.8); color: white; border: 2px solid #fcd34d; 
+      border-radius: 50%; width: 60px; height: 60px; display: flex; align-items: center; 
+      justify-content: center; font-size: 1.5rem; font-weight: bold; pointer-events: auto;
+      cursor: pointer; user-select: none;
+    }
     #game-over-screen, #leaderboard-screen{
       position:absolute; inset:0; display:none; z-index:30; align-items:center; justify-content:center;
       background: rgba(0,0,0,0.9); color:#f3f4f6; flex-direction:column; opacity:0; transition:opacity .4s;
@@ -85,6 +96,11 @@
     <div class="info-box text-sm">A/D or Arrows to Move</div>
   </div>
 
+  <div id="mobile-controls">
+    <div class="mobile-btn" id="left-btn">←</div>
+    <div style="color:#fcd34d; font-weight:700;">TAP TO MOVE</div>
+    <div class="mobile-btn" id="right-btn">→</div>
+  </div>
   <div id="game-container"></div>
 
   <div id="game-over-screen">
@@ -413,10 +429,9 @@ let lastTime = performance.now();
 const TARGET_FPS = 60;
 const FRAME_TIME = 1000 / TARGET_FPS;
 
-// Touch/swipe controls
-let touchStartX = 0;
-let touchStartY = 0;
-const SWIPE_THRESHOLD = 50;
+// Mobile detection
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+const mobileControls = document.getElementById('mobile-controls');
 
 const container = document.getElementById('game-container');
 const scoreDisplay = document.getElementById('score-display');
@@ -453,55 +468,30 @@ function setupVideoBackground(){
   }
 }
 
-/* TOUCH AND SWIPE CONTROLS */
-function setupTouchControls() {
-  // Touch start for swipe detection
-  document.addEventListener('touchstart', (e) => {
-    if (e.touches.length > 0) {
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-    }
-  });
-
-  // Touch end for swipe and tap detection
-  document.addEventListener('touchend', (e) => {
-    if (!e.changedTouches || e.changedTouches.length === 0) return;
+/* MOBILE CONTROLS */
+function setupMobileControls() {
+  if (isMobile) {
+    mobileControls.style.display = 'flex';
     
-    const touchEndX = e.changedTouches[0].clientX;
-    const touchEndY = e.changedTouches[0].clientY;
+    // Left button
+    document.getElementById('left-btn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      moveFox(currentLane - 1);
+    });
     
-    const deltaX = touchEndX - touchStartX;
-    const deltaY = touchEndY - touchStartY;
+    // Right button
+    document.getElementById('right-btn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      moveFox(currentLane + 1);
+    });
     
-    // Check if it's a swipe (significant horizontal movement)
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD) {
-      // Swipe detected
-      if (deltaX > 0) {
-        moveFox(currentLane + 1); // Swipe right
-      } else {
-        moveFox(currentLane - 1); // Swipe left
+    // Also allow tapping anywhere to start game
+    document.addEventListener('touchstart', (e) => {
+      if (!gameActive && e.target.className !== 'mobile-btn') {
+        startGame();
       }
-    } else {
-      // It's a tap - check which side of screen was tapped
-      const screenWidth = window.innerWidth;
-      const tapX = touchEndX;
-      
-      if (tapX < screenWidth / 2) {
-        // Left side tap
-        moveFox(currentLane - 1);
-      } else {
-        // Right side tap
-        moveFox(currentLane + 1);
-      }
-    }
-  });
-
-  // Also allow click/tap to start game
-  document.addEventListener('click', (e) => {
-    if (!gameActive) {
-      startGame();
-    }
-  });
+    });
+  }
 }
 
 /* CREATE FOX */
@@ -529,16 +519,7 @@ function createTrack(){
     t.repeat.set(4, 60);
     t.encoding = THREE.sRGBEncoding;
   });
-  
-  // BRIGHTER FLOOR MATERIAL
-  const floorMat = new THREE.MeshBasicMaterial({ 
-    map: tex, 
-    side: THREE.DoubleSide,
-    color: 0xffffff, // White color to brighten the texture
-    transparent: true,
-    opacity: 0.9
-  });
-  
+  const floorMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
   floorMesh = new THREE.Mesh(floorGeo, floorMat);
   floorMesh.rotation.x = -Math.PI/2;
   floorMesh.position.set(0, 0, 0);
@@ -553,33 +534,26 @@ function createObstacle(laneIndex) {
   const size = 1.8;
   const geo = new THREE.PlaneGeometry(size, size);
   
-  // BRIGHTER ORB MATERIAL with glow effect
+  // Orb material with MAX emissive intensity for bright golden halo
   const mat = new THREE.MeshBasicMaterial({ 
-    color: 0xffffff, 
-    transparent: true, 
+    color:0xffffff, 
+    transparent:true, 
     side: THREE.DoubleSide,
-    emissive: 0xffcc00,
-    emissiveIntensity: 2.0 // Increased for brighter glow
+    emissive: 0xffcc00, // Golden glow color
+    emissiveIntensity: 16.0
   });
 
   const orb = new THREE.Mesh(geo, mat);
   orb.position.set(laneX, 1.35, startZ);
   orb.userData.lane = laneIndex;
   orb.userData.billboard = true;
-  
   textureLoader.load(OBSTACLE_URL, tex => {
     tex.encoding = THREE.sRGBEncoding;
     tex.minFilter = THREE.LinearMipMapLinearFilter;
     tex.magFilter = THREE.LinearFilter;
     orb.material.map = tex;
     orb.material.needsUpdate = true;
-    
-    // Make orb brighter by adjusting material properties
-    orb.material.color = new THREE.Color(0xffffff);
-    orb.material.emissive = new THREE.Color(0xffff00);
-    orb.material.emissiveIntensity = 1.5;
   });
-  
   orb.renderOrder = 1;
   obstacles.push(orb);
   scene.add(orb);
@@ -742,17 +716,12 @@ function init(){
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
   
-  // BRIGHTER LIGHTING
-  scene.add(new THREE.AmbientLight(0xffffff, 2.0)); // Increased intensity
+  // Maximize scene brightness
+  scene.add(new THREE.AmbientLight(0xffffff, 20)); 
   
-  const spot = new THREE.SpotLight(0xffffff, 3.0, 50, Math.PI/6, 0.3); // Increased intensity
+  const spot = new THREE.SpotLight(0xffffff, 20, 50, Math.PI/6, 0.3);
   spot.position.set(0, 10, 10);
   scene.add(spot);
-
-  // Additional light for better visibility
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
-  directionalLight.position.set(5, 10, 5);
-  scene.add(directionalLight);
 
   createFox();
   createTrack();
@@ -760,7 +729,7 @@ function init(){
   // Setup controls
   window.addEventListener('keydown', onKeyDown, false);
   window.addEventListener('resize', onWindowResize, false);
-  setupTouchControls();
+  setupMobileControls();
   
   // UI Buttons
   const restartBtn = document.getElementById('restart-btn');
