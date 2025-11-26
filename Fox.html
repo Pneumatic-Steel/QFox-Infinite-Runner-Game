@@ -378,12 +378,12 @@ const SPEED_INCREASE_RATE = 0.0006;
 let runningTime = 0;
 const FOX_BASE_HEIGHT = 1.2;
 
-// Delta time for frame-rate independent animation
-let lastTime = performance.now();
-let deltaTime = 0;
-
 let touchStartX = 0, touchStartY = 0;
 const SWIPE_THRESHOLD = 50;
+
+let lastTime = performance.now();
+const TARGET_FPS = 60;
+const FRAME_TIME = 1000 / TARGET_FPS;
 
 const container = document.getElementById('game-container');
 const scoreDisplay = document.getElementById('score-display');
@@ -486,10 +486,6 @@ function startGame(){
   obstacles.forEach(o=>scene.remove(o));
   obstacles = [];
   obstacleSpawnTimer = 0;
-  
-  // Reset delta time tracking
-  lastTime = performance.now();
-  deltaTime = 0;
 
   scoreDisplay.textContent = `Score: ${score}`;
   gameOverScreen.style.display = 'none';
@@ -512,14 +508,12 @@ function moveFox(newLane){
     .start();
 }
 
-function updateObstacles(){
-  // Speed increases based on real time, not frames
-  gameSpeed += SPEED_INCREASE_RATE * deltaTime;
+function updateObstacles(deltaMultiplier){
+  gameSpeed += SPEED_INCREASE_RATE * deltaMultiplier;
 
   for (let i = obstacles.length - 1; i >= 0; i--){
     const obs = obstacles[i];
-    // Move obstacles based on delta time
-    obs.position.z += gameSpeed * deltaTime;
+    obs.position.z += gameSpeed * deltaMultiplier;
 
     if (obs.position.z > 4.8 && obs.position.z < 6.2) {
       if (obs.userData.lane === currentLane) {
@@ -536,9 +530,8 @@ function updateObstacles(){
     }
   }
 
-  obstacleSpawnTimer += deltaTime;
-  // Spawn rate based on time, not frames
-  const spawnRate = Math.max(300, 1200 - (gameSpeed - BASE_GAME_SPEED) * 2000);
+  obstacleSpawnTimer++;
+  const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140));
   if (obstacleSpawnTimer >= spawnRate) {
     createObstacle(Math.floor(Math.random()*3));
     obstacleSpawnTimer = 0;
@@ -637,24 +630,22 @@ function onWindowResize(){
 function animate(){
   requestAnimationFrame(animate);
   
-  // Calculate delta time for frame-rate independent animation
   const currentTime = performance.now();
-  deltaTime = (currentTime - lastTime) / 16.67; // Normalize to 60fps baseline
+  const deltaTime = currentTime - lastTime;
   lastTime = currentTime;
   
-  // Cap delta time to prevent huge jumps if tab was backgrounded
-  if (deltaTime > 3) deltaTime = 1;
+  const deltaMultiplier = deltaTime / FRAME_TIME;
   
   TWEEN.update();
 
   if (gameActive) {
-    updateObstacles();
+    updateObstacles(deltaMultiplier);
 
-    runningTime += 0.11 * deltaTime;
+    runningTime += 0.11 * deltaMultiplier;
     foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
 
     if (floorTexture) {
-      floorTexture.offset.y += gameSpeed * 0.05 * deltaTime;
+      floorTexture.offset.y += gameSpeed * 0.05 * deltaMultiplier;
     }
 
     for (let obs of obstacles) {
