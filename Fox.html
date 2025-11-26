@@ -224,17 +224,11 @@
 
     /* Define color schemes for floor & background phase transition (VIBRANT FOG EDITION) */
     const colorSchemes = [
-      // LEVEL 1 (Score 0-249): Dark Blue/Black (Initial Look)
       { floor: new THREE.Color('#1f2937'), fog: new THREE.Color('#111827') }, // 0
-      // LEVEL 2 (Score 250-499): Vibrant Red
       { floor: new THREE.Color('#A01010'), fog: new THREE.Color('#FF0000') }, // 1
-      // LEVEL 3 (Score 500-749): Bright Green
       { floor: new THREE.Color('#008000'), fog: new THREE.Color('#00FF00') }, // 2
-      // LEVEL 4 (Score 750-999): Electric Blue
       { floor: new THREE.Color('#1010A0'), fog: new THREE.Color('#00FFFF') }, // 3
-      // LEVEL 5 (Score 1000-1249): Hot Pink/Magenta
       { floor: new THREE.Color('#A010A0'), fog: new THREE.Color('#FF00FF') }, // 4
-      // LEVEL 6 (Score 1250+): Orange/Gold
       { floor: new THREE.Color('#B8860B'), fog: new THREE.Color('#FF8C00') }, // 5
     ];
     let currentColorIndex = 0;
@@ -479,12 +473,7 @@
     /* CREATE FOX */
     function createFox(){
       const geo = new THREE.PlaneGeometry(1.8, 1.8);
-  const mat = new THREE.MeshBasicMaterial({
-  map: null,
-  color: 0xffffff,
-  transparent: true,
-  side: THREE.DoubleSide
-});
+      const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent:true });
       foxPlayer = new THREE.Mesh(geo, mat);
       textureLoader.load(FOX_HEAD_URL, (tex)=>{
         tex.encoding = THREE.sRGBEncoding;
@@ -519,13 +508,26 @@
       const laneX = lanePositions[laneIndex];
       const startZ = -120;
       const size = 1.8;
+      // plane so it can billboard and accept a map
       const geo = new THREE.PlaneGeometry(size, size);
-      // Orb material with MAX emissive intensity for bright golden halo
-      const mat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, side: THREE.DoubleSide, emissive: 0xffcc00, // Golden glow color emissiveIntensity: 16.0 // 🔥 FIX 2: Increased from 8.0 to 16.0 for maximum glow });
+
+      // Use MeshStandardMaterial so emissive + emissiveIntensity work properly.
+      // Note: no comments inside the object literal — that previously broke parsing.
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        transparent: true,
+        side: THREE.DoubleSide,
+        emissive: 0xffcc00,
+        emissiveIntensity: 4.0,
+        metalness: 0.0,
+        roughness: 0.5
+      });
+
       const orb = new THREE.Mesh(geo, mat);
       orb.position.set(laneX, 1.35, startZ);
       orb.userData.lane = laneIndex;
       orb.userData.billboard = true;
+      // load texture map (orb image)
       textureLoader.load(OBSTACLE_URL, tex => {
         tex.encoding = THREE.sRGBEncoding;
         tex.minFilter = THREE.LinearMipMapLinearFilter;
@@ -533,6 +535,21 @@
         orb.material.map = tex;
         orb.material.needsUpdate = true;
       });
+
+      // add overlay halo (additive) so glow remains visible at speed
+      const haloGeo = new THREE.PlaneGeometry(size * 1.8, size * 1.8);
+      const haloMat = new THREE.MeshBasicMaterial({
+        color: 0xffcc00,
+        transparent: true,
+        opacity: 0.35,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      const halo = new THREE.Mesh(haloGeo, haloMat);
+      halo.position.set(0, 0, -0.01);
+      orb.add(halo);
+
       orb.renderOrder = 1;
       obstacles.push(orb);
       scene.add(orb);
@@ -572,7 +589,7 @@
   }
 
   if (!foxPlayer) return;
-  if (isSwitchingLanes) return; // ✅ LOCK
+  if (isSwitchingLanes) return; // lock to prevent multi-hop
   if (newLane < 0 || newLane > 2) return;
   if (newLane === currentLane) return;
 
@@ -586,7 +603,7 @@
     .to({ x: targetX }, 150)
     .easing(TWEEN.Easing.Quadratic.Out)
     .onComplete(() => {
-      isSwitchingLanes = false; // ✅ UNLOCK when lane reached
+      isSwitchingLanes = false; // unlock when lane reached
     })
     .start();
 }
@@ -778,14 +795,10 @@
     /* --- Color phase transition for floor and background (FOG EDITION) --- */
     function updateFloorAndBackground() {
       const numColors = colorSchemes.length;
-      // Calculate the current color index, making it loop using modulo (%)
       let levelIndex = Math.floor(score / 250) % numColors;
-      // Calculate the next color index, ensuring it wraps back to 0 at the end
       const nextIndex = (levelIndex + 1) % numColors;
-      // 't' is the progress (0.0 to 1.0) through the current level's transition
       const t = (score % 250) / 250;
 
-      // --- FLOOR COLOR TRANSITION ---
       const currentFloorColor = colorSchemes[levelIndex].floor;
       const nextFloorColor = colorSchemes[nextIndex].floor;
       const interpolatedFloorColor = currentFloorColor.clone().lerp(nextFloorColor, t);
@@ -794,13 +807,10 @@
         floorMesh.material.needsUpdate = true;
       }
 
-      // FOG (SCENE TINT) COLOR TRANSITION
       const currentFogColor = colorSchemes[levelIndex].fog;
       const nextFogColor = colorSchemes[nextIndex].fog;
-      // Lerp is the smooth transition function
       const interpolatedFogColor = currentFogColor.clone().lerp(nextFogColor, t);
       if (scene.fog) {
-        // Apply the smoothly interpolated color to the FOG
         scene.fog.color = interpolatedFogColor;
       }
     }
@@ -813,5 +823,3 @@
   </script>
 </body>
 </html>
-
-
