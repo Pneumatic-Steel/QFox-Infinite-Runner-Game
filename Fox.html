@@ -104,12 +104,12 @@
   <div id="game-container"></div>
 
   <div id="game-over-screen">
-    <h2 style="font-size:3.25rem; color:#ef4444; margin:0 0 .6rem 0; font-weight:900;">STATE COLLAPSE</h2>
+    <h2 style="font-size:3.25rem; color:#ef4444; margin:0 0 .6rem 0; font-weight:900;">Game  Over</h2>
     <p style="font-size:1.25rem; margin:0 0 1rem 0;">Final Distance Run: <span id="final-score" style="color:#fbbf24; font-weight:800;">0</span></p>
     
     <div id="initials-form">
       <p style="font-size:1.2rem; color:#fcd34d; font-weight:800; margin-bottom:10px;">NEW HIGH SCORE!</p>
-      <input type="text" id="initials-input" maxlength="3" placeholder="___" autocomplete="off">
+      <input type="text" id="initials-input" maxlength="5" placeholder="_____" autocomplete="off">
       <button id="submit-score-btn">SUBMIT</button>
     </div>
 
@@ -251,7 +251,7 @@ window.handleGameOver = async function(finalScore) {
   if (isFirebaseReady && user) {
     try {
       const leaderboardRef = collection(db, 'leaderboard');
-      const lowScoreQuery = query(leaderboardRef, orderBy('score', 'desc'), limit(1000));
+      const lowScoreQuery = query(leaderboardRef, orderBy('score', 'desc'), limit(100));
       const querySnapshot = await getDocs(lowScoreQuery);
       
       let lowestTopScore = 0;
@@ -260,7 +260,7 @@ window.handleGameOver = async function(finalScore) {
         lowestTopScore = docs[docs.length - 1].data().score || 0;
       }
 
-      if (finalScore > lowestTopScore || querySnapshot.size < 1000) {
+      if (finalScore > lowestTopScore || querySnapshot.size < 100) {
         showInitialsInput(finalScore);
       }
     } catch (error) {
@@ -292,7 +292,7 @@ document.getElementById('submit-score-btn').addEventListener('click', async () =
   
   let initials = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
   if (!initials) {
-    alert("Please enter your initials (3 letters)");
+    alert("Please enter your initials (5 letters)");
     return;
   }
   
@@ -392,7 +392,7 @@ let audioEnabled = true;
 function initializeMusic() {
   bgm = new Audio(MUSIC_URL);
   bgm.loop = true;
-  bgm.volume = 0.7;
+  bgm.volume = 0.9;
   
   // Enable audio on first user interaction
   const enableAudio = () => {
@@ -424,7 +424,7 @@ const BASE_GAME_SPEED = 0.25;
 const SPEED_INCREASE_RATE = 0.0006;
 
 let runningTime = 0;
-const FOX_BASE_HEIGHT = 1.2;
+const FOX_BASE_HEIGHT = 1.5;
 
 let lastTime = performance.now();
 const TARGET_FPS = 60;
@@ -556,7 +556,7 @@ function createObstacle(laneIndex) {
   
   // Position both at the same location
   orb.position.set(laneX, 1.35, startZ);
-  halo.position.set(laneX, 1.35, startZ);
+  halo.position.set(laneX, 1.36, startZ);
   
   // Set user data
   orb.userData.lane = laneIndex;
@@ -603,7 +603,7 @@ function createObstacle(laneIndex) {
 // Function to animate the halo with a pulsing effect
 function animateHalo(halo) {
   const pulseSpeed = 0.01;
-  const minScale = 0.9;
+  const minScale = 0.8;
   const maxScale = 1.1;
   let scaleDirection = 1;
   
@@ -936,3 +936,4 @@ window.addEventListener('load', () => {
 </script>
 </body>
 </html>
+
