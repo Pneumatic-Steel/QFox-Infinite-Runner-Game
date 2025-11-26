@@ -133,22 +133,22 @@ window.qfoxUserId = 'Anonymous';
 /* Define color schemes for floor & background phase transition (VIBRANT FOG EDITION) */
 const colorSchemes = [
   // LEVEL 1 (Score 0-249): Dark Blue/Black (Initial Look)
-  { floor: new THREE.Color('#0d1117'), fog: new THREE.Color('#0d1117') }, 
+  { floor: new THREE.Color('#1f2937'), fog: new THREE.Color('#111827') }, // Slightly brighter floor
   
   // LEVEL 2 (Score 250-499): Vibrant Red
-  { floor: new THREE.Color('#8C0000'), fog: new THREE.Color('#FF0000') }, 
+  { floor: new THREE.Color('#A01010'), fog: new THREE.Color('#FF0000') }, // Brighter Red floor
   
   // LEVEL 3 (Score 500-749): Bright Green
-  { floor: new THREE.Color('#006400'), fog: new THREE.Color('#00FF00') }, 
+  { floor: new THREE.Color('#008000'), fog: new THREE.Color('#00FF00') }, // Brighter Green floor
   
   // LEVEL 4 (Score 750-999): Electric Blue
-  { floor: new THREE.Color('#000080'), fog: new THREE.Color('#00FFFF') }, 
+  { floor: new THREE.Color('#1010A0'), fog: new THREE.Color('#00FFFF') }, // Brighter Blue floor
   
   // LEVEL 5 (Score 1000-1249): Hot Pink/Magenta
-  { floor: new THREE.Color('#8B008B'), fog: new THREE.Color('#FF00FF') },
+  { floor: new THREE.Color('#A010A0'), fog: new THREE.Color('#FF00FF') }, // Brighter Pink floor
   
   // LEVEL 6 (Score 1250+): Orange/Gold
-  { floor: new THREE.Color('#A0522D'), fog: new THREE.Color('#FF8C00') }, 
+  { floor: new THREE.Color('#B8860B'), fog: new THREE.Color('#FF8C00') }, // Brighter Gold/Brown floor
 ];
 
 let currentColorIndex = 0;
@@ -472,7 +472,16 @@ function createObstacle(laneIndex) {
   const startZ = -120;
   const size = 1.8;
   const geo = new THREE.PlaneGeometry(size, size);
-  const mat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, side: THREE.DoubleSide });
+  
+  // Added emissive color to make the obstacle glow (golden halo)
+  const mat = new THREE.MeshBasicMaterial({ 
+    color:0xffffff, 
+    transparent:true, 
+    side: THREE.DoubleSide,
+    emissive: 0xffcc00, // Golden glow color
+    emissiveIntensity: 0.5 // Adjust intensity as needed
+  });
+
   const orb = new THREE.Mesh(geo, mat);
   orb.position.set(laneX, 1.35, startZ);
   orb.userData.lane = laneIndex;
@@ -628,9 +637,9 @@ function init(){
   hasInited = true;
   scene = new THREE.Scene();
   
-  // ⭐️ FIX 1: Initialize Fog for smooth background color transition ⭐️
+  // Initialize Fog for smooth background color transition
   const initialFogColor = colorSchemes[0].fog;
-  scene.fog = new THREE.Fog(initialFogColor, 40, 150); // Color, near distance, far distance
+  scene.fog = new THREE.Fog(initialFogColor, 40, 150); 
   
   setupVideoBackground();
   camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -640,7 +649,10 @@ function init(){
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
-  scene.add(new THREE.AmbientLight(0xffffff, 1.8));
+  
+  // Increased Ambient Light intensity for a brighter scene
+  scene.add(new THREE.AmbientLight(0xffffff, 3)); 
+  
   const spot = new THREE.SpotLight(0xffffff, 3, 50, Math.PI/6, 0.3);
   spot.position.set(0, 10, 10);
   scene.add(spot);
@@ -683,6 +695,11 @@ function animate(){
     runningTime += 0.11 * deltaMultiplier;
     if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
 
+    // ⭐️ FIX: Floor movement is re-added here by scrolling the texture ⭐️
+    if (floorTexture) {
+      floorTexture.offset.y += gameSpeed * 0.02 * deltaMultiplier;
+    }
+    
     // PHASE FLOOR AND BACKGROUND COLOR
     updateFloorAndBackground();
 
@@ -722,7 +739,7 @@ function updateFloorAndBackground() {
   }
   
   
-  // ⭐️ FIX 2: FOG (SCENE TINT) COLOR TRANSITION ⭐️
+  // FOG (SCENE TINT) COLOR TRANSITION
   const currentFogColor = colorSchemes[levelIndex].fog;
   const nextFogColor = colorSchemes[nextIndex].fog;
   // Lerp is the smooth transition function
@@ -732,8 +749,6 @@ function updateFloorAndBackground() {
     // Apply the smoothly interpolated color to the FOG
     scene.fog.color = interpolatedFogColor;
   }
-  
-  // NOTE: The line setting scene.background to a solid color has been removed.
 }
 
 window.addEventListener('load', () => {
