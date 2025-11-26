@@ -411,7 +411,7 @@ function setupVideoBackground(){
 
 /* CREATE FOX */
 function createFox(){
-  const geo = new THREE.PlaneGeometry(1.6, 1.6);
+  const geo = new THREE.PlaneGeometry(1.8, 1.8);
   const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff });
 
   foxPlayer = new THREE.Mesh(geo, mat);
@@ -452,7 +452,7 @@ function createTrack(){
 function createObstacle(laneIndex) {
   const laneX = lanePositions[laneIndex];
   const startZ = -300;
-  const size = 1.6;
+  const size = 1.8;
 
   const geo = new THREE.PlaneGeometry(size, size);
   const mat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, side: THREE.DoubleSide });
@@ -516,18 +516,36 @@ function updateObstacles(deltaMultiplier){
     const obs = obstacles[i];
     obs.position.z += gameSpeed * deltaMultiplier;
 
-    if (obs.position.z > 4.8 && obs.position.z < 6.2) {
+    // Collision detection - check if obstacle is at fox position
+    const foxZ = foxPlayer.position.z;
+    const obsZ = obs.position.z;
+    const collisionRange = 0.9; // Half of sprite size for accurate detection
+    
+    if (obsZ >= foxZ - collisionRange && obsZ <= foxZ + collisionRange) {
       if (obs.userData.lane === currentLane) {
-        doGameOver();
-        return;
+        // Additional check: ensure fox and obstacle are actually overlapping
+        const foxX = foxPlayer.position.x;
+        const obsX = obs.position.x;
+        const lateralRange = 0.9;
+        
+        if (Math.abs(foxX - obsX) < lateralRange) {
+          doGameOver();
+          return;
+        }
       }
     }
 
-    if (obs.position.z > 80) {
-      scene.remove(obs);
-      obstacles.splice(i,1);
+    // Point scoring - obstacle passed the fox without collision
+    if (obsZ > foxZ + 2 && !obs.userData.scored) {
+      obs.userData.scored = true;
       score += 10;
       scoreDisplay.textContent = `Score: ${score}`;
+    }
+
+    // Remove obstacles that are far behind camera
+    if (obsZ > 80) {
+      scene.remove(obs);
+      obstacles.splice(i,1);
     }
   }
 
