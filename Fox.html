@@ -130,11 +130,20 @@ let isFirebaseReady = false;
 window.highScoreValue = 0;
 window.qfoxUserId = 'Anonymous';
 
+/* Define color schemes for level transitions */
+const colorSchemes = [
+  new THREE.Color('#ff00ff'), // purple
+  new THREE.Color('#00ffff'), // cyan
+  new THREE.Color('#ffff00'), // yellow
+  new THREE.Color('#ff0000'), // red
+  // Add more colors if desired
+];
+
 const firebaseConfig = {
   apiKey: "AIzaSyBgfoQLeOOqbKBuM69SO88jhCpfwrz_koo",
   authDomain: "qfox-29287.firebaseapp.com",
   projectId: "qfox-29287",
-  storageBucket: "qfox-29287.firebasestorage.app",
+  storageBucket: "qfox-29287.firebaseapp.com",
   messagingSenderId: "778217166086",
   appId: "1:778217166086:web:1480312c499fdec6aafa87",
   measurementId: "G-VGEY7GV2QD"
@@ -323,14 +332,14 @@ window.showLeaderboard = async function() {
       const data = docSnap.data();
       const rank = index + 1;
       const initials = data.initials || '???';
-      const score = data.score || 0;
+      const scoreVal = data.score || 0;
       const isMe = (user && data.uid === user.uid) ? 'color:#fcd34d; font-weight:bold;' : '';
 
       html += `
         <div class="leaderboard-entry" style="${isMe}">
           <span class="rank">${rank}</span>
           <span class="initials">${initials}</span>
-          <span class="score">${score.toLocaleString()}</span>
+          <span class="score">${scoreVal.toLocaleString()}</span>
         </div>
       `;
     });
@@ -343,10 +352,9 @@ window.showLeaderboard = async function() {
   }
 }
 
+// Initialize Firebase
 initFirebase();
-</script>
 
-<script>
 /* GAME ASSETS */
 const FOX_HEAD_URL   = 'head.png';
 const OBSTACLE_URL   = 'orb.png';
@@ -361,7 +369,6 @@ function initializeMusic() {
   bgm.loop = true;
   bgm.volume = 0.7;
 
-  // Use a named function so we can remove the listeners cleanly
   function unlock() {
     bgm.play().catch(()=>{});
     document.removeEventListener('keydown', unlock);
@@ -432,14 +439,12 @@ function setupVideoBackground(){
 function createFox(){
   const geo = new THREE.PlaneGeometry(1.8, 1.8);
   const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent:true });
-
   foxPlayer = new THREE.Mesh(geo, mat);
   textureLoader.load(FOX_HEAD_URL, (tex)=>{
     tex.encoding = THREE.sRGBEncoding;
     foxPlayer.material = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.FrontSide });
     foxPlayer.material.needsUpdate = true;
   });
-
   foxPlayer.position.set(lanePositions[currentLane], FOX_BASE_HEIGHT, 5);
   scene.add(foxPlayer);
 }
@@ -448,21 +453,17 @@ function createFox(){
 function createTrack(){
   const trackWidth = 18;
   const trackLength = 600;
-
   const floorGeo = new THREE.PlaneGeometry(trackWidth, trackLength, 1, 1);
-
   const tex = textureLoader.load(FLOOR_IMAGE_URL, t => {
     t.wrapS = THREE.RepeatWrapping;
     t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(4, 60);
     t.encoding = THREE.sRGBEncoding;
   });
-
   const floorMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
   floorMesh = new THREE.Mesh(floorGeo, floorMat);
   floorMesh.rotation.x = -Math.PI/2;
   floorMesh.position.set(0, 0, 0);
-
   scene.add(floorMesh);
   floorTexture = tex;
 }
@@ -473,15 +474,12 @@ function createObstacle(laneIndex) {
   const laneX = lanePositions[laneIndex];
   const startZ = -120; // closer spawn so it's visible
   const size = 1.8;
-
   const geo = new THREE.PlaneGeometry(size, size);
   const mat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, side: THREE.DoubleSide });
-
   const orb = new THREE.Mesh(geo, mat);
   orb.position.set(laneX, 1.35, startZ);
   orb.userData.lane = laneIndex;
   orb.userData.billboard = true;
-
   textureLoader.load(OBSTACLE_URL, tex => {
     tex.encoding = THREE.sRGBEncoding;
     tex.minFilter = THREE.LinearMipMapLinearFilter;
@@ -489,31 +487,24 @@ function createObstacle(laneIndex) {
     orb.material.map = tex;
     orb.material.needsUpdate = true;
   });
-
   orb.renderOrder = 1;
-
   obstacles.push(orb);
   scene.add(orb);
 }
 
 /* GAME CONTROL */
 function startGame(){
-  // Reset safely
   if (!scene || !renderer || !camera) {
-    // If the world isn't ready yet, try to init and then start after small delay
-    init(); // safe since init checks for things internally
+    init();
   }
-
   gameActive = true;
   score = 0;
   gameSpeed = BASE_GAME_SPEED;
   currentLane = 1;
   if (foxPlayer) foxPlayer.position.x = lanePositions[currentLane];
-
   obstacles.forEach(o=>{ try { scene.remove(o); } catch(e){} });
   obstacles = [];
   obstacleSpawnTimer = 0;
-
   const scoreEl = document.getElementById('score-display');
   if (scoreEl) scoreEl.textContent = `Score: ${score}`;
   if (gameOverScreen) {
@@ -526,66 +517,57 @@ function startGame(){
   if (initialsForm) initialsForm.style.display = 'none';
 }
 
+/* MOVE FOX LANE */
 function moveFox(newLane){
   if (!gameActive) return;
   if (!foxPlayer) return;
   if (newLane < 0 || newLane > 2) return;
   if (newLane === currentLane) return;
-
   currentLane = newLane;
   const targetX = lanePositions[currentLane];
-
-  // Kill previous tweens acting directly on position to avoid piling up tweens
   TWEEN.removeAll();
-
   new TWEEN.Tween(foxPlayer.position)
     .to({ x: targetX }, 150)
     .easing(TWEEN.Easing.Quadratic.Out)
     .start();
 }
 
+/* UPDATE OBSTACLES */
 function updateObstacles(deltaMultiplier){
   if (!foxPlayer) return;
   gameSpeed += SPEED_INCREASE_RATE * deltaMultiplier;
-
   for (let i = obstacles.length - 1; i >= 0; i--){
     const obs = obstacles[i];
     obs.position.z += gameSpeed * deltaMultiplier;
-
-    // Collision detection - check if obstacle is at fox position
+    // Collision detection
     const foxZ = foxPlayer.position.z;
     const obsZ = obs.position.z;
-    const collisionRange = 0.9; // Half of sprite size for accurate detection
-    
+    const collisionRange = 0.9;
     if (obsZ >= foxZ - collisionRange && obsZ <= foxZ + collisionRange) {
       if (obs.userData.lane === currentLane) {
-        // Additional check: ensure fox and obstacle are actually overlapping
         const foxX = foxPlayer.position.x;
         const obsX = obs.position.x;
         const lateralRange = 0.9;
-        
         if (Math.abs(foxX - obsX) < lateralRange) {
           doGameOver();
           return;
         }
       }
     }
-
-    // Point scoring - obstacle passed the fox without collision
+    // Scoring
     if (obsZ > foxZ + 2 && !obs.userData.scored) {
       obs.userData.scored = true;
       score += 10;
       const scoreEl = document.getElementById('score-display');
       if (scoreEl) scoreEl.textContent = `Score: ${score}`;
     }
-
-    // Remove obstacles that are far behind camera
+    // Remove off-screen obstacles
     if (obsZ > 80) {
       try { scene.remove(obs); } catch(e){}
       obstacles.splice(i,1);
     }
   }
-
+  // Spawn new obstacle
   obstacleSpawnTimer++;
   const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140));
   if (obstacleSpawnTimer >= spawnRate) {
@@ -594,6 +576,7 @@ function updateObstacles(deltaMultiplier){
   }
 }
 
+/* GAME OVER */
 function doGameOver(){
   if (!gameActive) return;
   gameActive = false;
@@ -601,12 +584,9 @@ function doGameOver(){
   if (gameOverScreen) {
     gameOverScreen.style.display = 'flex';
   }
-
   if (typeof window.handleGameOver === 'function') {
     window.handleGameOver(score);
   }
-
-  // Fade in panel
   new TWEEN.Tween({o:0}).to({o:1}, 450).onUpdate(obj=>{
     if (gameOverScreen) gameOverScreen.style.opacity = obj.o;
   }).start();
@@ -622,9 +602,7 @@ function onKeyDown(e){
     }
     return;
   }
-
   if (e.target && e.target.tagName === 'INPUT') return;
-
   if (!gameActive) {
     if (e.code === 'KeyR' || e.code === 'Space') startGame();
     return;
@@ -638,7 +616,6 @@ function onTouchStart(e){
   touchStartX = e.touches[0].clientX;
   touchStartY = e.touches[0].clientY;
 }
-
 function onTouchEnd(e){
   if (!e.changedTouches || e.changedTouches.length === 0) return;
   const dx = e.changedTouches[0].clientX - touchStartX;
@@ -655,33 +632,26 @@ let hasInited = false;
 function init(){
   if (hasInited) return;
   hasInited = true;
-
   scene = new THREE.Scene();
   setupVideoBackground();
-
   camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.set(0, 3.5, 10);
   camera.lookAt(0, 1, 0);
-
   renderer = new THREE.WebGLRenderer({ antialias:true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
-
   scene.add(new THREE.AmbientLight(0xffffff, 1.8));
   const spot = new THREE.SpotLight(0xffffff, 3, 50, Math.PI/6, 0.3);
   spot.position.set(0, 10, 10);
   scene.add(spot);
-
   createFox();
   createTrack();
-
   window.addEventListener('keydown', onKeyDown, false);
   window.addEventListener('resize', onWindowResize, false);
   document.addEventListener('touchstart', onTouchStart, {passive:true});
   document.addEventListener('touchend', onTouchEnd, {passive:true});
-
-  // Hook up UI buttons (moved from inline)
+  // UI Buttons
   const restartBtn = document.getElementById('restart-btn');
   if (restartBtn) restartBtn.addEventListener('click', () => startGame());
   const leaderboardBtn = document.getElementById('leaderboard-btn');
@@ -691,8 +661,6 @@ function init(){
     const lb = document.getElementById('leaderboard-screen');
     if (lb) { lb.style.opacity = 0; setTimeout(()=> lb.style.display = 'none', 300); }
   });
-
-  // Start paused — call startGame explicitly after everything ready
   startGame();
 }
 
@@ -705,25 +673,22 @@ function onWindowResize(){
 
 function animate(){
   requestAnimationFrame(animate);
-  
   const currentTime = performance.now();
   const deltaTime = currentTime - lastTime;
   lastTime = currentTime;
-  
   const deltaMultiplier = deltaTime / FRAME_TIME;
-  
   TWEEN.update();
 
   if (gameActive) {
     updateObstacles(deltaMultiplier);
-
     runningTime += 0.11 * deltaMultiplier;
     if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
-
     if (floorTexture) {
       floorTexture.offset.y += gameSpeed * 0.05 * deltaMultiplier;
     }
-
+    // Update fox color based on score
+    updateColorScheme();
+    // Billboard obstacles to camera
     if (camera) {
       for (let obs of obstacles) {
         if (obs.userData && obs.userData.billboard && obs.lookAt) {
@@ -736,16 +701,16 @@ function animate(){
   if (renderer && scene && camera) renderer.render(scene, camera);
 }
 
-/* START */
+// Call init and animate when page loads
 window.addEventListener('load', () => {
   initializeMusic();
   init();
   animate();
 });
 
-// Expose a couple of functions for external UI if necessary
+// Expose functions
 window.startGame = startGame;
-window.showLeaderboard = window.showLeaderboard || function(){ // fallback to avoid override
+window.showLeaderboard = window.showLeaderboard || function(){ 
   const lb = document.getElementById('leaderboard-screen');
   if (lb) {
     lb.style.display = 'flex';
@@ -753,6 +718,25 @@ window.showLeaderboard = window.showLeaderboard || function(){ // fallback to av
   }
 };
 
+/* --- Color transition logic --- */
+
+function updateColorScheme() {
+  if (!foxPlayer || !foxPlayer.material) return;
+
+  const levelIndex = Math.floor(score / 250);
+  const nextIndex = Math.min(levelIndex + 1, colorSchemes.length - 1);
+  const t = (score % 250) / 250; // progress between current and next
+
+  const currentColor = colorSchemes[levelIndex];
+  const nextColor = colorSchemes[nextIndex];
+
+  // Interpolate colors
+  const interpolatedColor = currentColor.clone().lerp(nextColor, t);
+
+  // Apply to material
+  foxPlayer.material.color = interpolatedColor;
+  foxPlayer.material.needsUpdate = true;
+}
 </script>
 </body>
 </html>
