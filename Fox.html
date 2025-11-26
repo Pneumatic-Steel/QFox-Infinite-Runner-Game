@@ -834,7 +834,8 @@
     }
 
     // Helper functions exposed to UI
-    window.startGame = function(){ startGame(); };
+    window.startGame = function(){ 
+  if (!gameActive) startGameInternal(); };
     window.showTutorial = function(){ document.getElementById('tutorial-screen').style.display='flex'; setTimeout(()=> document.getElementById('tutorial-screen').style.opacity=1,10); };
     window.closeTutorial = function(){ document.getElementById('tutorial-screen').style.opacity=0; setTimeout(()=> document.getElementById('tutorial-screen').style.display='none',400); try{ localStorage.setItem(TUTORIAL_SEEN_KEY,'true'); }catch(e){} };
     window.resumeGame = function(){ resumeGame(); };
@@ -845,3 +846,4 @@
   </script>
 </body>
 </html>
+
