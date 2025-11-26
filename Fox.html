@@ -479,7 +479,12 @@
     /* CREATE FOX */
     function createFox(){
       const geo = new THREE.PlaneGeometry(1.8, 1.8);
-      const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent:true });
+  const mat = new THREE.MeshBasicMaterial({
+  map: null,
+  color: 0xffffff,
+  transparent: true,
+  side: THREE.DoubleSide
+});
       foxPlayer = new THREE.Mesh(geo, mat);
       textureLoader.load(FOX_HEAD_URL, (tex)=>{
         tex.encoding = THREE.sRGBEncoding;
@@ -808,4 +813,5 @@
   </script>
 </body>
 </html>
+
 
