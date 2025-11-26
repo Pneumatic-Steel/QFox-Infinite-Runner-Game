@@ -235,27 +235,21 @@ let isFirebaseReady = false;
 window.highScoreValue = 0;
 window.qfoxUserId = 'Anonymous';
 
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+// --- FIXED CONFIGURATION: Hardcoded to resolve 'Service Unavailable' error ---
+const appId = "1:778217166086:web:1480312c499fdec6aafa87";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyBgfoQLeOOqbKBuM69SO88jhCpfwrz_koo",
-  authDomain: "qfox-29287.firebaseapp.com",
-  projectId: "qfox-29287",
-  storageBucket: "qfox-29287.firebasestorage.app",
-  messagingSenderId: "778217166086",
-  appId: "1:778217166086:web:1480312c499fdec6aafa87",
-  measurementId: "G-VGEY7GV2QD"
+let firebaseConfig = {
+    apiKey: "AIzaSyBgfoQLeOOqbKBuM69SO88jhCpfwrz_koo",
+    authDomain: "qfox-29287.firebaseapp.com",
+    projectId: "qfox-29287",
+    storageBucket: "qfox-29287.firebasestorage.app",
+    messagingSenderId: "778217166086",
+    appId: appId, // Reference the appId variable defined above
+    measurementId: "G-VGEY7GV2QD"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+let initialAuthToken = null; 
+// --- END FIXED CONFIGURATION ---
 
 // Initialize Firebase
 async function initFirebase() {
@@ -861,4 +855,3 @@ window.onload = () => {
 
 </body>
 </html>
-
