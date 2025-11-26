@@ -890,14 +890,16 @@ function animate(){
     // PHASE FLOOR AND BACKGROUND COLOR
     updateFloorAndBackground();
 
-    // Billboard obstacles and halos
+    // Billboard obstacles and halos (FIXED: Using quaternion copy for true billboard)
     if (camera) {
       for (let obstacleGroup of obstacles) {
-        if (obstacleGroup.orb.userData && obstacleGroup.orb.userData.billboard && obstacleGroup.orb.lookAt) {
-          obstacleGroup.orb.lookAt(camera.position);
+        if (obstacleGroup.orb.userData && obstacleGroup.orb.userData.billboard) {
+          // quaternion.copy ensures the plane is exactly parallel to the camera plane
+          // preventing distortion (vertical ovals) caused by lookAt() perspective
+          obstacleGroup.orb.quaternion.copy(camera.quaternion);
         }
-        if (obstacleGroup.halo.userData && obstacleGroup.halo.userData.billboard && obstacleGroup.halo.lookAt) {
-          obstacleGroup.halo.lookAt(camera.position);
+        if (obstacleGroup.halo.userData && obstacleGroup.halo.userData.billboard) {
+          obstacleGroup.halo.quaternion.copy(camera.quaternion);
         }
       }
     }
