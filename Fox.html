@@ -5,11 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Quantum Fox: Endless Runner</title>
 
+  <!-- Tailwind (development CDN - harmless warning in console) -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Three.js and Tween.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/23.1.1/tween.umd.js"></script>
 
   <style>
+    /* UI + layout styles */
     body { margin:0; overflow:hidden; background:#0d1117; color:#f3f4f6; font-family:Inter,system-ui,Arial; }
     canvas { display:block; }
     #ui-container{
@@ -21,125 +25,39 @@
       background: rgba(0,0,0,0.7); padding:8px 16px; border-radius:8px; font-size:1.1rem; font-weight:700;
       border:2px solid #3b82f6; min-width:140px; text-align:center;
     }
-    #combo-display {
-      background: rgba(16,185,129,0.9); border-color:#10b981; color:#064e3b;
-      font-size:1.3rem; transform:scale(1); transition:transform 0.2s;
-    }
+    #combo-display { background: rgba(16,185,129,0.9); border-color:#10b981; color:#064e3b; font-size:1.3rem; transform:scale(1); transition:transform 0.2s; }
     #combo-display.pulse { animation: combo-pulse 0.3s; }
-    @keyframes combo-pulse {
-      0%, 100% { transform:scale(1); }
-      50% { transform:scale(1.15); }
-    }
-    #multiplier-display {
-      background: rgba(251,191,36,0.9); border-color:#fbbf24; color:#78350f;
-    }
-    #touch-indicator{
-      position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:10;
-      background: rgba(0,0,0,0.7); padding:8px 14px; border-radius:8px; color:#fcd34d; border:2px solid #3b82f6;
-      pointer-events:none; font-weight:700; opacity:1; transition:opacity 1s;
-    }
+    @keyframes combo-pulse { 0%,100%{transform:scale(1);}50%{transform:scale(1.15);} }
+    #multiplier-display { background: rgba(251,191,36,0.9); border-color:#fbbf24; color:#78350f; }
+    #touch-indicator{ position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:10; background: rgba(0,0,0,0.7); padding:8px 14px; border-radius:8px; color:#fcd34d; border:2px solid #3b82f6; pointer-events:none; font-weight:700; opacity:1; transition:opacity 1s; }
     #touch-indicator.fade { opacity:0; }
-    #game-over-screen, #leaderboard-screen, #pause-screen, #tutorial-screen{
-      position:absolute; inset:0; display:none; z-index:30; align-items:center; justify-content:center;
-      background: rgba(0,0,0,0.9); color:#f3f4f6; flex-direction:column; opacity:0; transition:opacity .4s;
-      text-align:center; overflow-y:auto; padding:20px;
-    }
+    #game-over-screen, #leaderboard-screen, #pause-screen, #tutorial-screen{ position:absolute; inset:0; display:none; z-index:30; align-items:center; justify-content:center; background: rgba(0,0,0,0.9); color:#f3f4f6; flex-direction:column; opacity:0; transition:opacity .4s; text-align:center; overflow-y:auto; padding:20px; }
     .button-group { display:flex; gap:15px; margin-top:20px; flex-wrap:wrap; justify-content:center; }
-    .restart-button, .close-button{
-      padding:12px 22px; border-radius:.5rem; font-weight:800; border:none; cursor:pointer;
-      background:#fcd34d; color:#111827; pointer-events:auto; transition: all 0.2s;
-    }
+    .restart-button, .close-button{ padding:12px 22px; border-radius:.5rem; font-weight:800; border:none; cursor:pointer; background:#fcd34d; color:#111827; pointer-events:auto; transition: all 0.2s; }
     .restart-button:hover, .close-button:hover { background:#fbbf24; transform:translateY(-2px); }
-
-    #initials-form {
-      display:none; flex-direction:column; align-items:center; margin:20px 0;
-      background: rgba(255,255,255,0.1); padding:20px; border-radius:12px; border:2px solid #fcd34d;
-      animation: pulse-border 2s infinite;
-    }
-    @keyframes pulse-border {
-      0% { border-color:#fcd34d; box-shadow:0 0 0 0 rgba(252,211,77,0.4); }
-      70% { border-color:#fcd34d; box-shadow:0 0 0 10px rgba(252,211,77,0); }
-      100% { border-color:#fcd34d; box-shadow:0 0 0 0 rgba(252,211,77,0); }
-    }
-    #initials-input {
-      background:#111827; border:2px solid #4b5563; color:#10b981; font-size:3rem;
-      text-align:center; width:180px; border-radius:8px; text-transform:uppercase;
-      margin-bottom:15px; font-family:monospace; letter-spacing:0.2em;
-    }
-    #initials-input:focus { outline:none; border-color:#10b981; }
-    #submit-score-btn {
-      background:#10b981; color:#064e3b; padding:10px 30px; border-radius:6px;
-      font-weight:800; border:none; cursor:pointer; font-size:1.2rem; transition:all 0.2s;
-    }
-    #submit-score-btn:hover { background:#34d399; transform:scale(1.05); }
-    #submit-score-btn:disabled { background:#4b5563; cursor:not-allowed; transform:none; }
-
-    #leaderboard-content {
-      width:90%; max-width:600px; margin-top:20px; background:rgba(0,0,0,0.7);
-      border-radius:10px; padding:20px; border:2px solid #10b981;
-      max-height:60vh; overflow-y:auto;
-    }
-    .leaderboard-entry {
-      display:flex; justify-content:space-between; padding:8px 0;
-      border-bottom:1px dashed #374151; font-size:1.1rem;
-    }
+    #initials-form { display:none; flex-direction:column; align-items:center; margin:20px 0; background: rgba(255,255,255,0.06); padding:18px; border-radius:12px; border:2px solid #fcd34d; }
+    #initials-input { background:#111827; border:2px solid #4b5563; color:#10b981; font-size:2.25rem; text-align:center; width:160px; border-radius:8px; text-transform:uppercase; margin-bottom:12px; font-family:monospace; letter-spacing:0.2em; }
+    #leaderboard-content { width:90%; max-width:600px; margin-top:20px; background:rgba(0,0,0,0.7); border-radius:10px; padding:20px; border:2px solid #10b981; max-height:60vh; overflow-y:auto; }
+    .leaderboard-entry { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed #374151; font-size:1.1rem; }
     .leaderboard-entry:last-child { border-bottom:none; }
-    .leaderboard-entry.header {
-      font-weight:800; font-size:1.3rem; color:#fcd34d;
-      border-bottom:2px solid #fcd34d; margin-bottom:10px;
-    }
+    .leaderboard-entry.header { font-weight:800; font-size:1.3rem; color:#fcd34d; border-bottom:2px solid #fcd34d; margin-bottom:10px; }
     .leaderboard-entry .rank { width:10%; text-align:center; color:#10b981; }
-    .leaderboard-entry .initials { width:30%; text-align:left; }
+    .leaderboard-entry .initials { width:50%; text-align:left; }
     .leaderboard-entry .score { width:30%; text-align:right; }
-
-    #pause-screen h2 { font-size:3rem; color:#fcd34d; margin-bottom:20px; font-weight:900; }
-    
-    #tutorial-screen {
-      background: rgba(0,0,0,0.95);
-    }
-    .tutorial-content {
-      max-width:700px; padding:30px; background:rgba(255,255,255,0.05); border-radius:16px;
-      border:2px solid #3b82f6;
-    }
-    .tutorial-section {
-      margin:20px 0; padding:15px; background:rgba(0,0,0,0.3); border-radius:8px;
-    }
-    .tutorial-section h3 {
-      color:#fcd34d; font-size:1.5rem; margin-bottom:10px;
-    }
-    .tutorial-section p {
-      color:#d1d5db; line-height:1.6; margin:8px 0;
-    }
-    .powerup-demo {
-      display:inline-block; padding:4px 12px; margin:4px; border-radius:6px; font-weight:700;
-    }
-    .shield-demo { background:#3b82f6; color:#fff; }
-    .multiplier-demo { background:#fbbf24; color:#78350f; }
-
-    @media (max-width: 640px) {
-      .info-box { font-size:0.9rem; min-width:100px; padding:6px 12px; }
-      #combo-display { font-size:1.1rem; }
-    }
-
-    #loading-screen {
-      position:absolute; inset:0; z-index:50; background:#0d1117;
-      display:flex; align-items:center; justify-content:center; flex-direction:column;
-    }
-    .loader {
-      width:60px; height:60px; border:5px solid #374151; border-top-color:#fcd34d;
-      border-radius:50%; animation:spin 1s linear infinite;
-    }
-    @keyframes spin {
-      to { transform:rotate(360deg); }
-    }
+    @media (max-width: 640px) { .info-box { font-size:0.9rem; min-width:100px; padding:6px 12px; } #combo-display { font-size:1.1rem; } }
+    #loading-screen { position:absolute; inset:0; z-index:50; background:#0d1117; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+    .loader { width:60px; height:60px; border:5px solid #374151; border-top-color:#fcd34d; border-radius:50%; animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
   </style>
 </head>
 <body>
+  <!-- Loading -->
   <div id="loading-screen">
     <div class="loader"></div>
     <p style="margin-top:20px; color:#9ca3af; font-weight:700;">LOADING QUANTUM FOX...</p>
   </div>
 
+  <!-- UI -->
   <div id="ui-container">
     <div id="score-display" class="info-box">Score: 0</div>
     <div id="high-score-display" class="info-box">High Score: 0</div>
@@ -151,23 +69,21 @@
   <div id="touch-indicator">Swipe Left / Right to Switch Lanes</div>
   <div id="game-container"></div>
 
+  <!-- Tutorial, Pause, Game Over, Leaderboard UI -->
   <div id="tutorial-screen">
-    <div class="tutorial-content">
+    <div class="tutorial-content" style="max-width:720px; background:rgba(255,255,255,0.03); padding:28px; border-radius:14px;">
       <h2 style="font-size:3rem; color:#10b981; margin-bottom:20px; font-weight:900;">HOW TO PLAY</h2>
-      
       <div class="tutorial-section">
         <h3>🎮 Controls</h3>
         <p><strong>Desktop:</strong> Press A/D or Arrow Keys to switch lanes</p>
         <p><strong>Mobile:</strong> Swipe left/right to switch lanes</p>
         <p><strong>Pause:</strong> Press ESC key anytime</p>
       </div>
-
       <div class="tutorial-section">
         <h3>🎯 Objective</h3>
         <p>Dodge the glowing orbs by switching lanes. The game speeds up as you progress!</p>
         <p>Each orb dodged = <strong style="color:#10b981;">10 points</strong></p>
       </div>
-
       <div class="tutorial-section">
         <h3>🔥 Combo System</h3>
         <p>Dodge 3+ orbs in a row to build a combo multiplier!</p>
@@ -175,21 +91,9 @@
         <p><strong style="color:#fbbf24;">5 dodges = 3x points</strong></p>
         <p><strong style="color:#ef4444;">10 dodges = 5x points!</strong></p>
       </div>
-
-      <div class="tutorial-section">
-        <h3>⚡ Power-Ups</h3>
-        <p>Collect power-ups that occasionally appear in lanes:</p>
-        <p><span class="powerup-demo shield-demo">🛡️ SHIELD</span> Protects you from one collision</p>
-        <p><span class="powerup-demo multiplier-demo">✨ 2x MULTIPLIER</span> Double points for 10 seconds</p>
+      <div style="text-align:center; margin-top:20px;">
+        <button class="restart-button" onclick="closeTutorial()" style="padding:12px 30px; font-size:1.1rem;">START GAME</button>
       </div>
-
-      <div class="tutorial-section">
-        <h3>🌈 Visual Progression</h3>
-        <p>Watch the background shift through colors as you master higher speeds!</p>
-      </div>
-
-      <button class="restart-button" onclick="window.closeTutorial()" style="margin-top:30px; font-size:1.3rem; padding:16px 40px;">START GAME</button>
-      <p style="margin-top:15px; color:#6b7280; font-size:0.9rem;">This tutorial won't show again. Press ESC during gameplay to pause.</p>
     </div>
   </div>
 
@@ -197,9 +101,9 @@
     <h2>PAUSED</h2>
     <p style="font-size:1.2rem; color:#9ca3af; margin-bottom:20px;">Press ESC or click Resume to continue</p>
     <div class="button-group">
-      <button class="restart-button" onclick="window.resumeGame()">RESUME</button>
-      <button class="restart-button" onclick="window.showTutorial()">TUTORIAL</button>
-      <button class="restart-button" onclick="window.quitToMenu()">QUIT</button>
+      <button class="restart-button" onclick="resumeGame()">RESUME</button>
+      <button class="restart-button" onclick="showTutorial()">TUTORIAL</button>
+      <button class="restart-button" onclick="quitToMenu()">QUIT</button>
     </div>
   </div>
 
@@ -207,23 +111,23 @@
     <h2 style="font-size:3.25rem; color:#ef4444; margin:0 0 .6rem 0; font-weight:900;">STATE COLLAPSE</h2>
     <p style="font-size:1.25rem; margin:0 0 1rem 0;">Final Distance Run: <span id="final-score" style="color:#fbbf24; font-weight:800;">0</span></p>
     <p style="font-size:1.1rem; margin:0 0 1rem 0; color:#10b981;">Max Combo: <span id="final-combo" style="font-weight:800;">0x</span></p>
-    
+
     <div id="initials-form">
-      <p style="font-size:1.2rem; color:#fcd34d; font-weight:800; margin-bottom:10px;">NEW HIGH SCORE!</p>
-      <input type="text" id="initials-input" maxlength="3" placeholder="___" autocomplete="off">
-      <button id="submit-score-btn">SUBMIT</button>
+      <p style="font-size:1.1rem; color:#fcd34d; margin-bottom:8px; font-weight:800;">NEW HIGH SCORE!</p>
+      <input id="initials-input" maxlength="3" placeholder="AAA" style="background:#111827; border:2px solid #4b5563; color:#10b981; font-size:2rem; text-align:center; width:140px; border-radius:8px; text-transform:uppercase;">
+      <button id="submit-score-btn" class="restart-button" style="margin-top:12px;">SUBMIT</button>
     </div>
 
-    <div class="button-group">
+    <div class="button-group" style="margin-top:18px;">
       <button class="restart-button" onclick="startGame()">RESTART</button>
-      <button class="restart-button" onclick="window.showLeaderboard()">LEADERBOARD</button>
+      <button class="restart-button" onclick="showLeaderboard()">LEADERBOARD</button>
     </div>
     <p style="margin-top:12px; color:#9ca3af; font-size:0.9rem;">User ID: <span id="user-id-display">Anonymous</span></p>
   </div>
 
   <div id="leaderboard-screen">
     <button class="close-button" onclick="document.getElementById('leaderboard-screen').style.display='none';" style="position:absolute; top:20px; right:20px; padding:8px 16px; font-size:1.1rem;">✕ CLOSE</button>
-    <h2 style="font-size:3rem; color:#10b981; margin-bottom:20px; font-weight:900;">TOP 100 RUNNERS</h2>
+    <h2 style="font-size:3rem; color:#10b981; margin-bottom:20px; font-weight:900;">TOP RUNNERS</h2>
     <div id="leaderboard-content">
       <div class="leaderboard-entry header">
         <span class="rank">#</span>
@@ -234,814 +138,710 @@
     </div>
   </div>
 
-<!-- Firebase module script + leaderboard functions (you already had keys) -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, getDoc, addDoc, query, orderBy, limit, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  <!-- Firebase module (optional leaderboard) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, doc, setDoc, getDoc, addDoc, query, orderBy, limit, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-const HIGH_SCORE_KEY = 'quantumFoxHighScore';
-const TUTORIAL_SEEN_KEY = 'quantumFoxTutorialSeen';
-let db, auth, user;
-let isFirebaseReady = false;
-window.highScoreValue = 0;
-window.qfoxUserId = 'Anonymous';
+    const HIGH_SCORE_KEY = 'quantumFoxHighScore';
+    const TUTORIAL_SEEN_KEY = 'quantumFoxTutorialSeen';
+    let db, auth, user;
+    let isFirebaseReady = false;
+    window.highScoreValue = 0;
+    window.qfoxUserId = 'Anonymous';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBgfoQLeOOqbKBuM69SO88jhCpfwrz_koo",
-  authDomain: "qfox-29287.firebaseapp.com",
-  projectId: "qfox-29287",
-  storageBucket: "qfox-29287.firebasestorage.app",
-  messagingSenderId: "778217166086",
-  appId: "1:778217166086:web:1480312c499fdec6aafa87",
-  measurementId: "G-VGEY7GV2QD"
-};
+    // Replace with your Firebase config (already included earlier if you want)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBgfoQLeOOqbKBuM69SO88jhCpfwrz_koo",
+      authDomain: "qfox-29287.firebaseapp.com",
+      projectId: "qfox-29287",
+      storageBucket: "qfox-29287.firebasestorage.app",
+      messagingSenderId: "778217166086",
+      appId: "1:778217166086:web:1480312c499fdec6aafa87",
+      measurementId: "G-VGEY7GV2QD"
+    };
 
-async function initFirebase() {
-  try {
-    const app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    await signInAnonymously(auth);
+    async function initFirebase() {
+      try {
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+        await signInAnonymously(auth);
 
-    onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        user = currentUser;
-        window.qfoxUserId = user.uid.substring(0, 8);
-        document.getElementById('user-id-display').textContent = window.qfoxUserId;
-        isFirebaseReady = true;
-        loadHighScore();
-      } else {
-        isFirebaseReady = false;
-      }
-    });
-  } catch (error) {
-    console.error("Firebase init error:", error);
-  }
-}
-
-async function loadHighScore() {
-  try {
-    const localScore = localStorage.getItem(HIGH_SCORE_KEY);
-    if (localScore !== null) {
-      window.highScoreValue = parseInt(localScore, 10) || 0;
-      document.getElementById('high-score-display').textContent = `High Score: ${window.highScoreValue}`;
-    }
-  } catch (e) {}
-
-  if (!isFirebaseReady || !user) return;
-
-  try {
-    const scoreDocRef = doc(db, 'users', user.uid);
-    const docSnap = await getDoc(scoreDocRef);
-    if (docSnap.exists()) {
-      const firebaseScore = docSnap.data().highScore || 0;
-      if (firebaseScore > window.highScoreValue) {
-        window.highScoreValue = firebaseScore;
-        document.getElementById('high-score-display').textContent = `High Score: ${window.highScoreValue}`;
-        try { localStorage.setItem(HIGH_SCORE_KEY, window.highScoreValue.toString()); } catch (e) {}
+        onAuthStateChanged(auth, (currentUser) => {
+          if (currentUser) {
+            user = currentUser;
+            window.qfoxUserId = user.uid.substring(0,8);
+            document.getElementById('user-id-display').textContent = window.qfoxUserId;
+            isFirebaseReady = true;
+            loadHighScore();
+          } else {
+            isFirebaseReady = false;
+          }
+        });
+      } catch (error) {
+        console.error("Firebase init error:", error);
       }
     }
-  } catch (error) { console.error("Load score error:", error); }
-}
 
-window.handleGameOver = async function(finalScore, maxCombo) {
-  if (finalScore > window.highScoreValue) {
-    window.highScoreValue = finalScore;
-    document.getElementById('high-score-display').textContent = `High Score: ${window.highScoreValue}`;
-    
-    try { localStorage.setItem(HIGH_SCORE_KEY, finalScore.toString()); } catch (e) {}
+    async function loadHighScore() {
+      try {
+        const localScore = localStorage.getItem(HIGH_SCORE_KEY);
+        if (localScore !== null) {
+          window.highScoreValue = parseInt(localScore, 10) || 0;
+          document.getElementById('high-score-display').textContent = `High Score: ${window.highScoreValue}`;
+        }
+      } catch (e) {}
 
-    if (isFirebaseReady && user) {
+      if (!isFirebaseReady || !user) return;
       try {
         const scoreDocRef = doc(db, 'users', user.uid);
-        setDoc(scoreDocRef, { highScore: finalScore, timestamp: serverTimestamp() }, { merge: true });
-      } catch (e) { console.error("Save error:", e); }
+        const docSnap = await getDoc(scoreDocRef);
+        if (docSnap.exists()) {
+          const firebaseScore = docSnap.data().highScore || 0;
+          if (firebaseScore > window.highScoreValue) {
+            window.highScoreValue = firebaseScore;
+            document.getElementById('high-score-display').textContent = `High Score: ${window.highScoreValue}`;
+            try { localStorage.setItem(HIGH_SCORE_KEY, window.highScoreValue.toString()); } catch (e) {}
+          }
+        }
+      } catch (error) { console.error("Load score error:", error); }
     }
-  }
 
-  document.getElementById('final-combo').textContent = maxCombo + 'x';
+    window.handleGameOver = async function(finalScore, maxCombo) {
+      if (finalScore > window.highScoreValue) {
+        window.highScoreValue = finalScore;
+        document.getElementById('high-score-display').textContent = `High Score: ${window.highScoreValue}`;
+        try { localStorage.setItem(HIGH_SCORE_KEY, finalScore.toString()); } catch (e) {}
 
-  const form = document.getElementById('initials-form');
-  form.style.display = 'none';
-
-  if (isFirebaseReady && user) {
-    try {
-      const leaderboardRef = collection(db, 'leaderboard');
-      const lowScoreQuery = query(leaderboardRef, orderBy('score', 'desc'), limit(1000));
-      const querySnapshot = await getDocs(lowScoreQuery);
-      
-      let lowestTopScore = 0;
-      if (!querySnapshot.empty) {
-        const docs = querySnapshot.docs;
-        lowestTopScore = docs[docs.length - 1].data().score || 0;
+        if (isFirebaseReady && user) {
+          try {
+            const scoreDocRef = doc(db, 'users', user.uid);
+            setDoc(scoreDocRef, { highScore: finalScore, timestamp: serverTimestamp() }, { merge: true });
+          } catch (e) { console.error("Save error:", e); }
+        }
       }
 
-      if (finalScore > lowestTopScore || querySnapshot.size < 1000) {
-        showInitialsInput(finalScore);
+      document.getElementById('final-combo').textContent = maxCombo + 'x';
+      const form = document.getElementById('initials-form');
+      form.style.display = 'none';
+
+      // Show initials input only if leaderboard slot likely available
+      if (isFirebaseReady && user) {
+        try {
+          const leaderboardRef = collection(db, 'leaderboard');
+          const lowScoreQuery = query(leaderboardRef, orderBy('score', 'desc'), limit(1000));
+          const querySnapshot = await getDocs(lowScoreQuery);
+
+          let lowestTopScore = 0;
+          if (!querySnapshot.empty) {
+            const docs = querySnapshot.docs;
+            lowestTopScore = docs[docs.length - 1].data().score || 0;
+          }
+
+          if (finalScore > lowestTopScore || querySnapshot.size < 1000) {
+            showInitialsInput(finalScore);
+          }
+        } catch (error) {
+          console.error("Leaderboard check failed:", error);
+        }
       }
-    } catch (error) {
-      console.error("Leaderboard check failed:", error);
-    }
-  }
-}
+    };
 
-function showInitialsInput(score) {
-  const form = document.getElementById('initials-form');
-  const input = document.getElementById('initials-input');
-  const btn = document.getElementById('submit-score-btn');
-  
-  form.style.display = 'flex';
-  input.value = '';
-  input.focus();
-  btn.textContent = "SUBMIT";
-  btn.disabled = false;
-  form.dataset.score = score;
-}
+    function showInitialsInput(score) {
+      const form = document.getElementById('initials-form');
+      const input = document.getElementById('initials-input');
+      const btn = document.getElementById('submit-score-btn');
 
-document.getElementById('submit-score-btn').addEventListener('click', async () => {
-  const form = document.getElementById('initials-form');
-  const input = document.getElementById('initials-input');
-  const btn = document.getElementById('submit-score-btn');
-  
-  let initials = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
-  if (!initials) initials = "AAA";
-  
-  const score = parseInt(form.dataset.score);
-
-  btn.textContent = "SAVING...";
-  btn.disabled = true;
-
-  if (isFirebaseReady && user) {
-    try {
-      const leaderboardRef = collection(db, 'leaderboard');
-      await addDoc(leaderboardRef, {
-        score: score,
-        initials: initials,
-        uid: user.uid,
-        timestamp: serverTimestamp()
-      });
-      
-      btn.textContent = "SAVED!";
-      setTimeout(() => {
-        form.style.display = 'none';
-        window.showLeaderboard();
-      }, 800);
-      
-    } catch (e) {
-      console.error("Submit error:", e);
-      btn.textContent = "ERROR";
-      setTimeout(() => { btn.disabled = false; btn.textContent = "RETRY"; }, 2000);
-    }
-  }
-});
-
-document.getElementById('initials-input').addEventListener('input', (e) => {
-  e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
-});
-
-window.showLeaderboard = async function() {
-  const screen = document.getElementById('leaderboard-screen');
-  const list = document.getElementById('leaderboard-list');
-  
-  screen.style.display = 'flex';
-  setTimeout(() => screen.style.opacity = 1, 10);
-  list.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
-
-  if (!isFirebaseReady) {
-    list.innerHTML = 'Firebase not ready.';
-    return;
-  }
-
-  try {
-    const leaderboardRef = collection(db, 'leaderboard');
-    const q = query(leaderboardRef, orderBy('score', 'desc'), limit(100));
-    const snapshot = await getDocs(q);
-
-    if (snapshot.empty) {
-      list.innerHTML = 'Be the first to post a score!';
-      return;
+      form.style.display = 'flex';
+      input.value = '';
+      input.focus();
+      btn.textContent = "SUBMIT";
+      btn.disabled = false;
+      form.dataset.score = score;
     }
 
-    let html = '';
-    snapshot.docs.forEach((doc, index) => {
-      const data = doc.data();
-      const rank = index + 1;
-      const initials = data.initials || '???';
-      const score = data.score || 0;
-      const isMe = (user && data.uid === user.uid) ? 'color:#fcd34d; font-weight:bold;' : '';
+    document.getElementById('submit-score-btn').addEventListener('click', async () => {
+      const form = document.getElementById('initials-form');
+      const input = document.getElementById('initials-input');
+      const btn = document.getElementById('submit-score-btn');
 
-      html += `
-        <div class="leaderboard-entry" style="${isMe}">
-          <span class="rank">${rank}</span>
-          <span class="initials">${initials}</span>
-          <span class="score">${score.toLocaleString()}</span>
-        </div>
-      `;
+      let initials = (input.value || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0,3);
+      if (!initials) initials = "AAA";
+      const score = parseInt(form.dataset.score || '0', 10);
+
+      btn.textContent = "SAVING...";
+      btn.disabled = true;
+
+      if (isFirebaseReady && user) {
+        try {
+          const leaderboardRef = collection(db, 'leaderboard');
+          await addDoc(leaderboardRef, {
+            score: score,
+            initials: initials,
+            uid: user.uid,
+            timestamp: serverTimestamp()
+          });
+          btn.textContent = "SAVED!";
+          setTimeout(() => {
+            form.style.display = 'none';
+            window.showLeaderboard();
+          }, 700);
+        } catch (e) {
+          console.error("Submit error:", e);
+          btn.textContent = "ERROR";
+          setTimeout(() => { btn.disabled = false; btn.textContent = "RETRY"; }, 2000);
+        }
+      }
     });
 
-    list.innerHTML = html;
+    document.getElementById('initials-input').addEventListener('input', (e) => {
+      e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+    });
 
-  } catch (error) {
-    console.error("Leaderboard error:", error);
-    list.innerHTML = `Error: ${error.message}`;
-  }
-}
+    window.showLeaderboard = async function() {
+      const screen = document.getElementById('leaderboard-screen');
+      const list = document.getElementById('leaderboard-list');
 
-initFirebase();
-</script>
+      screen.style.display = 'flex';
+      setTimeout(() => screen.style.opacity = 1, 10);
+      list.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
 
-<script>
-/* GAME ASSETS */
-const FOX_HEAD_URL   = 'head.png';
-const OBSTACLE_URL   = 'orb.png';
-const FLOOR_IMAGE_URL= 'floor.png';
-const BACKGROUND_VIDEO_URL = 'background.mp4';
-const MUSIC_URL      = 'music.wav';
+      if (!isFirebaseReady) {
+        list.innerHTML = 'Firebase not ready.';
+        return;
+      }
 
-/* MUSIC */
-let bgm = null;
-function initializeMusic() {
-  bgm = new Audio(MUSIC_URL);
-  bgm.loop = true;
-  bgm.volume = 0.7;
+      try {
+        const leaderboardRef = collection(db, 'leaderboard');
+        const q = query(leaderboardRef, orderBy('score', 'desc'), limit(100));
+        const snapshot = await getDocs(q);
 
-  const unlock = () => {
-    bgm.play().catch(()=>{});
-    document.removeEventListener('keydown', unlock);
-    document.removeEventListener('touchstart', unlock);
-  };
+        if (snapshot.empty) {
+          list.innerHTML = 'Be the first to post a score!';
+          return;
+        }
 
-  document.addEventListener('keydown', unlock, { passive: true });
-  document.addEventListener('touchstart', unlock, { passive: true });
-}
+        let html = '';
+        snapshot.docs.forEach((doc, index) => {
+          const data = doc.data();
+          const rank = index + 1;
+          const initials = data.initials || '???';
+          const score = data.score || 0;
+          const isMe = (user && data.uid === user.uid) ? 'font-weight:bold; color:#fcd34d;' : '';
 
-/* THREE / GAME GLOBALS */
-let scene, camera, renderer;
-let foxPlayer;
-let floorTexture = null;
-let floorMesh = null;
-let videoBackground = null;
+          html += `
+            <div class="leaderboard-entry" style="${isMe}">
+              <span class="rank">${rank}</span>
+              <span class="initials">${initials}</span>
+              <span class="score">${score.toLocaleString()}</span>
+            </div>
+          `;
+        });
 
-let score = 0;
-let gameActive = false;
-let gamePaused = false;
-let lanePositions = [-3.5, 0, 3.5];
-let currentLane = 1;
+        list.innerHTML = html;
+      } catch (error) {
+        console.error("Leaderboard error:", error);
+        list.innerHTML = `Error: ${error.message}`;
+      }
+    };
 
-let obstacles = [];
-let powerups = [];
-let obstacleSpawnTimer = 0;
-let powerupSpawnTimer = 0;
+    // Start Firebase initialization but do not block the game if it fails
+    initFirebase();
+  </script>
 
-let gameSpeed = 0.25;
-const BASE_GAME_SPEED = 0.25;
-const SPEED_INCREASE_RATE = 0.0006;
+  <!-- Main game script (non-module) -->
+  <script>
+    // Asset filenames (must match repo exactly)
+    const FOX_HEAD_URL   = 'head.png';
+    const OBSTACLE_URL   = 'orb.png';
+    const FLOOR_IMAGE_URL= 'floor.png';
+    const BACKGROUND_VIDEO_URL = 'background.mp4';
+    const MUSIC_URL      = 'music.wav';
 
-let runningTime = 0;
-const FOX_BASE_HEIGHT = 1.2;
+    // Local storage key
+    const HIGH_SCORE_KEY = 'quantumFoxHighScore';
+    const TUTORIAL_SEEN_KEY = 'quantumFoxTutorialSeen';
 
-let touchStartX = 0, touchStartY = 0;
-const SWIPE_THRESHOLD = 50;
-let hasInteractedTouch = false;
-
-let lastTime = performance.now();
-const TARGET_FPS = 60;
-const FRAME_TIME = 1000 / TARGET_FPS;
-
-// Combo system
-let comboCount = 0;
-let maxCombo = 0;
-let comboMultiplier = 1;
-
-// Power-ups
-let hasShield = false;
-let multiplierActive = false;
-let multiplierEndTime = 0;
-
-// Progressive visuals
-let backgroundHue = 240; // Start blue
-
-const container = document.getElementById('game-container');
-const scoreDisplay = document.getElementById('score-display');
-const comboDisplay = document.getElementById('combo-display');
-const multiplierDisplay = document.getElementById('multiplier-display');
-const gameOverScreen = document.getElementById('game-over-screen');
-const pauseScreen = document.getElementById('pause-screen');
-const finalScoreEl = document.getElementById('final-score');
-const touchIndicator = document.getElementById('touch-indicator');
-const loadingScreen = document.getElementById('loading-screen');
-
-const textureLoader = new THREE.TextureLoader();
-let assetsLoaded = 0;
-const totalAssets = 3; // fox, obstacle, floor
-
-/* ASSET LOADING */
-function incrementAssetLoad() {
-  assetsLoaded++;
-  if (assetsLoaded >= totalAssets) {
-    setTimeout(() => {
-      loadingScreen.style.opacity = '0';
-      setTimeout(() => {
-        loadingScreen.style.display = 'none';
-        checkTutorial();
-      }, 400);
-    }, 500);
-  }
-}
-
-/* TUTORIAL */
-window.showTutorial = function() {
-  const tutScreen = document.getElementById('tutorial-screen');
-  pauseScreen.style.display = 'none';
-  tutScreen.style.display = 'flex';
-  setTimeout(() => tutScreen.style.opacity = 1, 10);
-}
-
-window.closeTutorial = function() {
-  const tutScreen = document.getElementById('tutorial-screen');
-  tutScreen.style.opacity = 0;
-  setTimeout(() => {
-    tutScreen.style.display = 'none';
-    try { localStorage.setItem('quantumFoxTutorialSeen', 'true'); } catch(e) {}
-  }, 400);
-}
-
-function checkTutorial() {
-  try {
-    const seen = localStorage.getItem('quantumFoxTutorialSeen');
-    if (!seen) {
-      window.showTutorial();
+    // Music
+    let bgm = null;
+    function initializeMusic() {
+      try {
+        bgm = new Audio(MUSIC_URL);
+        bgm.loop = true;
+        bgm.volume = 0.7;
+        const unlock = () => {
+          bgm.play().catch(()=>{});
+          document.removeEventListener('keydown', unlock);
+          document.removeEventListener('touchstart', unlock);
+        };
+        document.addEventListener('keydown', unlock, { passive:true });
+        document.addEventListener('touchstart', unlock, { passive:true });
+      } catch (e) {
+        console.warn('Music init failed', e);
+      }
     }
-  } catch(e) {}
-}
 
-/* BACKGROUND VIDEO (used earlier for visual depth) */
-function setupVideoBackground(){
-  const vid = document.createElement('video');
-  vid.src = BACKGROUND_VIDEO_URL;
-  vid.loop = true;
-  vid.muted = true;
-  vid.playsInline = true;
-  vid.play().catch(()=>{});
+    // Three.js globals
+    let scene, camera, renderer;
+    let foxPlayer, floorMesh, floorTexture;
+    let videoBackgroundTexture = null;
 
-  const vtex = new THREE.VideoTexture(vid);
-  vtex.minFilter = THREE.LinearFilter;
-  vtex.magFilter = THREE.LinearFilter;
-  videoBackground = vtex;
-}
+    let score = 0;
+    let gameActive = false;
+    let gamePaused = false;
+    let lanePositions = [-3.5, 0, 3.5];
+    let currentLane = 1;
 
-/* UPDATE BG COLOR BASED ON SPEED (progressive visuals) */
-function updateBackgroundColor() {
-  const speedRatio = Math.min(1, (gameSpeed - BASE_GAME_SPEED) / 1.5);
-  backgroundHue = 240 + (speedRatio * 300); // shift hue through spectrum
-  backgroundHue = backgroundHue % 360;
-  const bgColor = new THREE.Color().setHSL(backgroundHue / 360, 0.6, 0.22);
-  scene.background = bgColor;
-  scene.fog = new THREE.Fog(bgColor, 20, 120);
-}
+    let obstacles = [];
+    let powerups = [];
+    let obstacleSpawnTimer = 0;
+    let powerupSpawnTimer = 0;
 
-/* CREATE FOX */
-function createFox(){
-  const geo = new THREE.PlaneGeometry(1.8, 1.8);
-  const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff });
+    let gameSpeed = 0.25;
+    const BASE_GAME_SPEED = 0.25;
+    const SPEED_INCREASE_RATE = 0.0006;
 
-  foxPlayer = new THREE.Mesh(geo, mat);
-  textureLoader.load(FOX_HEAD_URL, (tex)=>{
-    tex.encoding = THREE.sRGBEncoding;
-    foxPlayer.material = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.FrontSide });
-    foxPlayer.material.needsUpdate = true;
-    incrementAssetLoad();
-  }, undefined, () => incrementAssetLoad());
+    let runningTime = 0;
+    const FOX_BASE_HEIGHT = 1.2;
 
-  foxPlayer.position.set(lanePositions[currentLane], FOX_BASE_HEIGHT, 5);
-  scene.add(foxPlayer);
-}
+    let touchStartX = 0, touchStartY = 0;
+    const SWIPE_THRESHOLD = 50;
 
-/* CREATE TRACK (finished) */
-function createTrack(){
-  const trackWidth = 18;
-  const trackLength = 600;
+    let lastTime = performance.now();
 
-  const floorGeo = new THREE.PlaneGeometry(trackWidth, trackLength, 1, 1);
+    // combo/powerup variables
+    let comboCount = 0;
+    let maxCombo = 0;
+    let comboMultiplier = 1;
+    let hasShield = false;
+    let multiplierActive = false;
+    let multiplierEndTime = 0;
 
-  const tex = textureLoader.load(FLOOR_IMAGE_URL, t => {
-    t.wrapS = THREE.RepeatWrapping;
-    t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(4, 60); // tile more along length now
-    t.encoding = THREE.sRGBEncoding;
-    incrementAssetLoad();
-  }, undefined, () => incrementAssetLoad());
+    // textures loader + asset loaded tracking
+    const textureLoader = new THREE.TextureLoader();
+    let assetsLoaded = 0;
+    const totalAssets = 3; // head, orb, floor
 
-  const floorMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
-  floorMesh = new THREE.Mesh(floorGeo, floorMat);
-  floorMesh.rotation.x = -Math.PI/2;
-  floorMesh.position.set(0, 0, 0);
+    // UI refs
+    const container = document.getElementById('game-container');
+    const scoreDisplay = document.getElementById('score-display');
+    const comboDisplay = document.getElementById('combo-display');
+    const multiplierDisplay = document.getElementById('multiplier-display');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const pauseScreen = document.getElementById('pause-screen');
+    const finalScoreEl = document.getElementById('final-score');
+    const loadingScreen = document.getElementById('loading-screen');
+    const touchIndicator = document.getElementById('touch-indicator');
 
-  scene.add(floorMesh);
-  floorTexture = tex;
-}
+    function incrementAssetLoad() {
+      assetsLoaded++;
+      // If some error prevented assets from loading quickly, we still want a fallback after a small timeout.
+      if (assetsLoaded >= totalAssets) {
+        // hide loader gracefully
+        setTimeout(() => {
+          loadingScreen.style.opacity = '0';
+          setTimeout(()=> { loadingScreen.style.display = 'none'; }, 400);
+        }, 350);
+      }
+    }
 
-/* CREATE OBSTACLE (billboard plane) */
-function createObstacle(laneIndex) {
-  const laneX = lanePositions[laneIndex];
-  const startZ = -300 + (Math.random() * -50); // varied spawn depth a bit
-  const size = 1.6;
+    // Setup background video as optional visual (not required)
+    function setupVideoBackground() {
+      try {
+        const vid = document.createElement('video');
+        vid.src = BACKGROUND_VIDEO_URL;
+        vid.loop = true;
+        vid.muted = true;
+        vid.playsInline = true;
+        vid.play().catch(()=>{});
+        const vtex = new THREE.VideoTexture(vid);
+        vtex.minFilter = THREE.LinearFilter;
+        vtex.magFilter = THREE.LinearFilter;
+        videoBackgroundTexture = vtex;
+        // we won't set scene.background directly to this; we'll use color progression instead
+      } catch (e) {
+        console.warn('Background video init failed', e);
+      }
+    }
 
-  const geo = new THREE.PlaneGeometry(size, size);
-  const mat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, side: THREE.DoubleSide });
+    // Create player mesh
+    function createFox() {
+      const geo = new THREE.PlaneGeometry(1.8, 1.8);
+      const mat = new THREE.MeshBasicMaterial({ color:0xff00ff });
+      foxPlayer = new THREE.Mesh(geo, mat);
 
-  const orb = new THREE.Mesh(geo, mat);
-  orb.position.set(laneX, 1.35, startZ);
-  orb.userData.lane = laneIndex;
-  orb.userData.billboard = true;
+      // load texture and increment counter on success/fail
+      textureLoader.load(FOX_HEAD_URL, (tex) => {
+        tex.encoding = THREE.sRGBEncoding;
+        foxPlayer.material = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.FrontSide });
+        foxPlayer.material.needsUpdate = true;
+        incrementAssetLoad();
+      }, undefined, (err)=> {
+        console.warn('Failed loading fox head', err);
+        incrementAssetLoad();
+      });
 
-  textureLoader.load(OBSTACLE_URL, tex => {
-    tex.encoding = THREE.sRGBEncoding;
-    tex.minFilter = THREE.LinearMipMapLinearFilter;
-    tex.magFilter = THREE.LinearFilter;
-    orb.material.map = tex;
-    orb.material.needsUpdate = true;
-  }, undefined, () => { /* ignore load error */ });
+      foxPlayer.position.set(lanePositions[currentLane], FOX_BASE_HEIGHT, 5);
+      scene.add(foxPlayer);
+    }
 
-  orb.renderOrder = 1;
+    // Create floor using floor.png and make it scroll via UV offset
+    function createTrack() {
+      const trackWidth = 18;
+      const trackLength = 600;
+      const floorGeo = new THREE.PlaneGeometry(trackWidth, trackLength, 1, 1);
 
-  obstacles.push(orb);
-  scene.add(orb);
-}
+      const tex = textureLoader.load(FLOOR_IMAGE_URL, (t) => {
+        t.wrapS = THREE.RepeatWrapping;
+        t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(4, 60);
+        t.encoding = THREE.sRGBEncoding;
+        incrementAssetLoad();
+      }, undefined, (err) => {
+        console.warn('Failed loading floor', err);
+        incrementAssetLoad();
+      });
 
-/* Optional: create simple powerup (just a plane with different texture/colors) */
-function createPowerup(laneIndex, type='shield') {
-  const laneX = lanePositions[laneIndex];
-  const startZ = -250;
-  const size = 1.1;
-  const geo = new THREE.PlaneGeometry(size, size);
-  const mat = new THREE.MeshBasicMaterial({ color: type === 'shield' ? 0x3b82f6 : 0xfbbf24, transparent:true, side:THREE.DoubleSide });
+      const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent:true, opacity:0.95 });
+      floorMesh = new THREE.Mesh(floorGeo, mat);
+      floorMesh.rotation.x = -Math.PI/2;
+      floorMesh.position.set(0,0,0);
 
-  const pw = new THREE.Mesh(geo, mat);
-  pw.position.set(laneX, 1.2, startZ);
-  pw.userData = { type: type, collected:false };
-  powerups.push(pw);
-  scene.add(pw);
-}
+      scene.add(floorMesh);
+      floorTexture = tex;
+    }
 
-/* GAME CONTROL */
-function startGame(){
-  // reset
-  gameActive = true;
-  gamePaused = false;
-  score = 0;
-  comboCount = 0;
-  maxCombo = 0;
-  comboMultiplier = 1;
-  hasShield = false;
-  multiplierActive = false;
-  multiplierEndTime = 0;
-  gameSpeed = BASE_GAME_SPEED;
-  currentLane = 1;
-  foxPlayer.position.x = lanePositions[currentLane];
+    // Create billboard obstacle (plane that always faces camera)
+    function createObstacle(laneIndex) {
+      const laneX = lanePositions[laneIndex];
+      const startZ = -300 + (Math.random() * -60);
+      const size = 1.6;
 
-  // clear objects
-  obstacles.forEach(o=>scene.remove(o));
-  obstacles = [];
-  powerups.forEach(p=>scene.remove(p));
-  powerups = [];
-  obstacleSpawnTimer = 0;
-  powerupSpawnTimer = 0;
+      const geo = new THREE.PlaneGeometry(size, size);
+      const mat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, side:THREE.DoubleSide });
+      const orb = new THREE.Mesh(geo, mat);
+      orb.position.set(laneX, 1.35, startZ);
+      orb.userData = { lane: laneIndex, billboard: true };
 
-  // UI
-  scoreDisplay.textContent = `Score: ${score}`;
-  document.getElementById('combo-display').style.display = 'none';
-  document.getElementById('multiplier-display').style.display = 'none';
-  document.getElementById('final-combo').textContent = '0x';
-  document.getElementById('initials-form').style.display = 'none';
+      textureLoader.load(OBSTACLE_URL, (tex)=> {
+        tex.encoding = THREE.sRGBEncoding;
+        tex.minFilter = THREE.LinearMipMapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        orb.material.map = tex;
+        orb.material.needsUpdate = true;
+      }, undefined, ()=>{/*ignore*/});
 
-  // hide gameover/pause
-  gameOverScreen.style.display = 'none';
-  pauseScreen.style.display = 'none';
+      orb.renderOrder = 1;
+      obstacles.push(orb);
+      scene.add(orb);
+    }
 
-  // show touch hint briefly
-  touchIndicator.classList.remove('fade');
-  setTimeout(()=> touchIndicator.classList.add('fade'), 2200);
-}
+    // Create simple powerup
+    function createPowerup(laneIndex, type='shield') {
+      const laneX = lanePositions[laneIndex];
+      const startZ = -260;
+      const size = 1.1;
+      const geo = new THREE.PlaneGeometry(size, size);
+      const mat = new THREE.MeshBasicMaterial({ color: type === 'shield' ? 0x3b82f6 : 0xfbbf24, transparent:true, side:THREE.DoubleSide });
+      const pw = new THREE.Mesh(geo, mat);
+      pw.position.set(laneX, 1.2, startZ);
+      pw.userData = { type:type, collected:false };
+      powerups.push(pw);
+      scene.add(pw);
+    }
 
-function moveFox(newLane) {
-  if (!gameActive || gamePaused) return;
-  if (newLane < 0 || newLane > 2) return;
-  if (newLane === currentLane) return;
+    // UI updates
+    function updateComboUI() {
+      const comboEl = document.getElementById('combo-display');
+      if (comboCount <= 0) {
+        comboEl.style.display = 'none';
+      } else {
+        comboEl.style.display = 'block';
+        comboEl.textContent = `COMBO: ${comboCount}x`;
+        comboEl.classList.add('pulse');
+        setTimeout(()=> comboEl.classList.remove('pulse'), 220);
+      }
+      // compute multiplier based on combo
+      if (comboCount >= 10) comboMultiplier = 5;
+      else if (comboCount >= 5) comboMultiplier = 3;
+      else if (comboCount >= 3) comboMultiplier = 2;
+      else comboMultiplier = multiplierActive ? 2 : 1;
+      document.getElementById('multiplier-display').textContent = `${comboMultiplier}x MULTIPLIER`;
+    }
 
-  currentLane = newLane;
-  const targetX = lanePositions[currentLane];
-  new TWEEN.Tween(foxPlayer.position).to({ x: targetX }, 150).easing(TWEEN.Easing.Quadratic.Out).start();
-}
+    function updateShieldUI() {
+      const comboEl = document.getElementById('combo-display');
+      if (hasShield) {
+        comboEl.style.display = 'block';
+        comboEl.textContent = 'SHIELD ACTIVE';
+      } else {
+        if (comboCount > 0) comboEl.textContent = `COMBO: ${comboCount}x`;
+        else comboEl.style.display = 'none';
+      }
+    }
 
-function updateObstacles(delta) {
-  gameSpeed += SPEED_INCREASE_RATE * delta; // scale with delta
+    // Game logic updates for obstacles and powerups
+    function updateObstacles(deltaFrames) {
+      // speed ramp scaled by deltaFrames
+      gameSpeed += SPEED_INCREASE_RATE * deltaFrames;
 
-  for (let i = obstacles.length - 1; i >= 0; i--) {
-    const obs = obstacles[i];
-    obs.position.z += gameSpeed;
+      // update obstacles from end to start (safe removal)
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obs = obstacles[i];
+        obs.position.z += gameSpeed;
 
-    // collision check when near player
-    if (obs.position.z > 4.8 && obs.position.z < 6.2) {
-      if (obs.userData.lane === currentLane) {
-        // if shield active, consume shield and remove the orb
-        if (hasShield) {
-          hasShield = false;
-          updateShieldUI();
+        // collision check roughly when z approaches player's z ~5
+        if (obs.position.z > 4.8 && obs.position.z < 6.2) {
+          if (obs.userData.lane === currentLane) {
+            if (hasShield) {
+              hasShield = false;
+              updateShieldUI();
+              scene.remove(obs);
+              obstacles.splice(i,1);
+              comboCount = 0;
+              comboMultiplier = 1;
+              continue;
+            } else {
+              // game over
+              doGameOver();
+              return;
+            }
+          }
+        }
+
+        // passed behind player -> award points
+        if (obs.position.z > 80) {
           scene.remove(obs);
           obstacles.splice(i,1);
-          // break combo
-          comboCount = 0;
-          comboMultiplier = 1;
-          continue;
-        } else {
-          // Game Over
-          doGameOver();
-          return;
+          const base = 10;
+          const gained = Math.floor(base * comboMultiplier);
+          score += gained;
+          scoreDisplay.textContent = `Score: ${score}`;
+          comboCount++;
+          maxCombo = Math.max(maxCombo, comboCount);
+          updateComboUI();
+        }
+      }
+
+      // powerups movement + pickup check
+      for (let i = powerups.length - 1; i >= 0; i--) {
+        const p = powerups[i];
+        p.position.z += gameSpeed;
+        if (Math.abs(p.position.z - 5) < 1 && Math.abs(p.position.x - lanePositions[currentLane]) < 0.8 && !p.userData.collected) {
+          p.userData.collected = true;
+          if (p.userData.type === 'shield') {
+            hasShield = true; updateShieldUI();
+          } else if (p.userData.type === 'mult') {
+            multiplierActive = true;
+            comboMultiplier = 2;
+            multiplierEndTime = performance.now() + 10000;
+            document.getElementById('multiplier-display').style.display = 'block';
+            setTimeout(()=> { document.getElementById('multiplier-display').style.display = 'none'; }, 1200);
+          }
+          scene.remove(p);
+          powerups.splice(i,1);
+        } else if (p.position.z > 80) {
+          scene.remove(p);
+          powerups.splice(i,1);
+        }
+      }
+
+      // spawn logic
+      obstacleSpawnTimer++;
+      powerupSpawnTimer++;
+
+      const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140));
+      if (obstacleSpawnTimer >= spawnRate) {
+        createObstacle(Math.floor(Math.random()*3));
+        obstacleSpawnTimer = 0;
+      }
+
+      if (powerupSpawnTimer >= 900) {
+        if (Math.random() < 0.6) createPowerup(Math.floor(Math.random()*3), Math.random() < 0.6 ? 'shield' : 'mult');
+        powerupSpawnTimer = 0;
+      }
+
+      if (multiplierActive && performance.now() > multiplierEndTime) {
+        multiplierActive = false;
+        comboMultiplier = 1;
+      }
+    }
+
+    // Game over handling
+    function doGameOver() {
+      gameActive = false;
+      finalScoreEl.textContent = score;
+      document.getElementById('final-combo').textContent = maxCombo + 'x';
+      gameOverScreen.style.display = 'flex';
+      setTimeout(()=> gameOverScreen.style.opacity = 1, 10);
+
+      // save local high score
+      try {
+        const prev = parseInt(localStorage.getItem(HIGH_SCORE_KEY) || '0', 10);
+        if (score > prev) {
+          localStorage.setItem(HIGH_SCORE_KEY, score.toString());
+          window.highScoreValue = score;
+          document.getElementById('high-score-display').textContent = `High Score: ${score}`;
+          // call firebase handler if available (module script)
+          if (typeof window.handleGameOver === 'function') {
+            window.handleGameOver(score, maxCombo);
+          }
+        }
+      } catch (e) { console.warn('local save failed', e); }
+    }
+
+    // Input handlers
+    function onKeyDown(e) {
+      if (e.code === 'Escape') {
+        if (gameActive && !gamePaused) pauseGame();
+        else if (gamePaused) resumeGame();
+        return;
+      }
+      if (!gameActive) {
+        if (e.code === 'KeyR') startGame();
+        return;
+      }
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') moveFox(currentLane - 1);
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') moveFox(currentLane + 1);
+    }
+
+    function onTouchStart(e) {
+      if (e.touches && e.touches.length > 0) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+      }
+    }
+
+    function onTouchEnd(e) {
+      if (!e.changedTouches || e.changedTouches.length === 0) return;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
+        if (!gameActive) startGame();
+        else {
+          if (dx > 0) moveFox(currentLane + 1);
+          else moveFox(currentLane - 1);
         }
       }
     }
 
-    // passed behind player
-    if (obs.position.z > 80) {
-      scene.remove(obs);
-      obstacles.splice(i,1);
-      // scoring with multiplier
-      const base = 10;
-      const gained = Math.floor(base * comboMultiplier);
-      score += gained;
-      scoreDisplay.textContent = `Score: ${score}`;
-      comboCount++;
-      maxCombo = Math.max(maxCombo, comboCount);
-      updateComboUI();
+    function pauseGame(){
+      gamePaused = true;
+      pauseScreen.style.display = 'flex';
+      setTimeout(()=> pauseScreen.style.opacity = 1, 10);
     }
-  }
 
-  // powerups movement & collection
-  for (let i = powerups.length - 1; i >= 0; i--) {
-    const p = powerups[i];
-    p.position.z += gameSpeed;
-    // collected if same lane and near fox
-    if (Math.abs(p.position.z - 5) < 1 && Math.abs(p.position.x - lanePositions[currentLane]) < 0.8 && !p.userData.collected) {
-      p.userData.collected = true;
-      if (p.userData.type === 'shield') {
-        hasShield = true;
-        updateShieldUI();
-      } else if (p.userData.type === 'mult') {
-        multiplierActive = true;
-        comboMultiplier = 2;
-        multiplierEndTime = performance.now() + 10000; // 10s
+    function resumeGame(){
+      gamePaused = false;
+      pauseScreen.style.opacity = 0;
+      setTimeout(()=> pauseScreen.style.display = 'none', 300);
+    }
+
+    function quitToMenu(){
+      location.reload();
+    }
+
+    // Animation & render loop
+    function init(){
+      scene = new THREE.Scene();
+      // initial background color
+      scene.background = new THREE.Color(0x0d1117);
+
+      camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 3.5, 10);
+      camera.lookAt(0, 1, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias:true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio || 1);
+      container.appendChild(renderer.domElement);
+
+      scene.add(new THREE.AmbientLight(0xffffff, 1.6));
+      const spot = new THREE.SpotLight(0xffffff, 3, 60, Math.PI/6, 0.3);
+      spot.position.set(0, 10, 10);
+      scene.add(spot);
+
+      createFox();
+      createTrack();
+
+      window.addEventListener('resize', onWindowResize, false);
+      window.addEventListener('keydown', onKeyDown, false);
+      document.addEventListener('touchstart', onTouchStart, {passive:true});
+      document.addEventListener('touchend', onTouchEnd, {passive:true});
+
+      initializeMusic();
+      setupVideoBackground();
+
+      // load high score
+      try {
+        const hs = parseInt(localStorage.getItem(HIGH_SCORE_KEY) || '0', 10);
+        if (!isNaN(hs) && hs > 0) {
+          document.getElementById('high-score-display').textContent = `High Score: ${hs}`;
+          window.highScoreValue = hs;
+        }
+      } catch (e) {}
+
+      // show tutorial if first time
+      try {
+        const seen = localStorage.getItem(TUTORIAL_SEEN_KEY);
+        if (!seen) showTutorial();
+      } catch(e) {}
+
+      startGame();
+      lastTime = performance.now();
+      requestAnimationFrame(loop);
+    }
+
+    function loop(now) {
+      requestAnimationFrame(loop);
+      const deltaFrames = Math.max(1, (now - lastTime) / (1000/60));
+      lastTime = now;
+
+      if (!gamePaused && gameActive) {
+        updateObstacles(deltaFrames);
+
+        runningTime += 0.11 * deltaFrames;
+        if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
+
+        // scroll floor texture
+        if (floorTexture) floorTexture.offset.y += gameSpeed * 0.02 * deltaFrames;
+
+        // billboarding for obstacles (face camera but keep upright)
+        for (const obs of obstacles) {
+          if (obs.userData && obs.userData.billboard) {
+            const camPos = camera.position.clone(); camPos.y = obs.position.y; obs.lookAt(camPos);
+          }
+        }
+      }
+
+      // multiplier display
+      if (multiplierActive && performance.now() < multiplierEndTime) {
         document.getElementById('multiplier-display').style.display = 'block';
-        setTimeout(()=> { document.getElementById('multiplier-display').style.display = 'none'; }, 1200);
+      } else {
+        document.getElementById('multiplier-display').style.display = 'none';
       }
-      scene.remove(p);
-      powerups.splice(i,1);
-    } else if (p.position.z > 80) {
-      scene.remove(p);
-      powerups.splice(i,1);
-    }
-  }
 
-  // spawn logic
-  obstacleSpawnTimer++;
-  powerupSpawnTimer++;
-
-  const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140));
-  if (obstacleSpawnTimer >= spawnRate) {
-    createObstacle(Math.floor(Math.random() * 3));
-    obstacleSpawnTimer = 0;
-  }
-
-  // spawn powerup less often
-  if (powerupSpawnTimer >= 900) {
-    if (Math.random() < 0.6) createPowerup(Math.floor(Math.random() * 3), Math.random() < 0.6 ? 'shield' : 'mult');
-    powerupSpawnTimer = 0;
-  }
-
-  // multiplier expiration
-  if (multiplierActive && performance.now() > multiplierEndTime) {
-    multiplierActive = false;
-    comboMultiplier = 1;
-  }
-}
-
-function updateComboUI() {
-  if (comboCount <= 0) {
-    comboDisplay.style.display = 'none';
-  } else {
-    comboDisplay.style.display = 'block';
-    comboDisplay.textContent = `COMBO: ${comboCount}x`;
-    comboDisplay.classList.add('pulse');
-    setTimeout(()=> comboDisplay.classList.remove('pulse'), 220);
-  }
-  // compute multiplier display (visual only)
-  if (comboCount >= 10) {
-    comboMultiplier = 5;
-  } else if (comboCount >= 5) {
-    comboMultiplier = 3;
-  } else if (comboCount >= 3) {
-    comboMultiplier = 2;
-  } else {
-    comboMultiplier = multiplierActive ? 2 : 1;
-  }
-  document.getElementById('multiplier-display').textContent = `${comboMultiplier}x MULTIPLIER`;
-}
-
-/* UI helper for shield */
-function updateShieldUI() {
-  // small visual: show combo box as shield if active
-  if (hasShield) {
-    comboDisplay.style.display = 'block';
-    comboDisplay.textContent = 'SHIELD ACTIVE';
-  } else {
-    comboDisplay.style.display = (comboCount > 0) ? 'block' : 'none';
-    if (comboCount > 0) comboDisplay.textContent = `COMBO: ${comboCount}x`;
-  }
-}
-
-/* GAME OVER */
-function doGameOver() {
-  gameActive = false;
-  finalScoreEl.textContent = score;
-  document.getElementById('final-combo').textContent = maxCombo + 'x';
-  gameOverScreen.style.display = 'flex';
-  setTimeout(()=> gameOverScreen.style.opacity = 1, 10);
-
-  // Save locally
-  try {
-    const prev = parseInt(localStorage.getItem('quantumFoxHighScore') || '0', 10);
-    if (score > prev) {
-      localStorage.setItem('quantumFoxHighScore', score.toString());
-      window.highScoreValue = score;
-      document.getElementById('high-score-display').textContent = `High Score: ${score}`;
-      // show initials form if firebase available (handled by handleGameOver)
-      if (typeof window.handleGameOver === 'function') {
-        window.handleGameOver(score, maxCombo);
-      }
-    }
-  } catch (e) {
-    console.warn("Save local failed", e);
-  }
-}
-
-/* INPUT */
-function onKeyDown(e) {
-  if (e.code === 'Escape') {
-    if (gameActive && !gamePaused) {
-      pauseGame();
-    } else if (gamePaused) {
-      resumeGame();
-    }
-    return;
-  }
-  if (!gameActive) {
-    if (e.code === 'KeyR') startGame();
-    return;
-  }
-  if (e.code === 'KeyA' || e.code === 'ArrowLeft') moveFox(currentLane - 1);
-  if (e.code === 'KeyD' || e.code === 'ArrowRight') moveFox(currentLane + 1);
-}
-
-function onTouchStart(e) {
-  hasInteractedTouch = true;
-  if (e.touches && e.touches.length > 0) {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-  }
-}
-
-function onTouchEnd(e) {
-  if (!e.changedTouches || e.changedTouches.length === 0) return;
-  const dx = e.changedTouches[0].clientX - touchStartX;
-  const dy = e.changedTouches[0].clientY - touchStartY;
-  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
-    if (!gameActive) startGame();
-    else {
-      if (dx > 0) moveFox(currentLane + 1);
-      else moveFox(currentLane - 1);
-    }
-  }
-}
-
-function pauseGame() {
-  gamePaused = true;
-  pauseScreen.style.display = 'flex';
-  setTimeout(()=> pauseScreen.style.opacity = 1, 10);
-}
-
-window.resumeGame = function() {
-  gamePaused = false;
-  pauseScreen.style.opacity = 0;
-  setTimeout(()=> pauseScreen.style.display = 'none', 300);
-}
-
-window.quitToMenu = function() {
-  // For now, just reload to reset state
-  location.reload();
-}
-
-/* ANIMATE / RENDER */
-function init() {
-  scene = new THREE.Scene();
-  // start with a color background, video background optional
-  updateBackgroundColor();
-
-  camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 3.5, 10);
-  camera.lookAt(0, 1, 0);
-
-  renderer = new THREE.WebGLRenderer({ antialias:true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(window.devicePixelRatio || 1);
-  container.appendChild(renderer.domElement);
-
-  scene.add(new THREE.AmbientLight(0xffffff, 1.6));
-  const spot = new THREE.SpotLight(0xffffff, 3, 60, Math.PI/6, 0.3);
-  spot.position.set(0, 10, 10);
-  scene.add(spot);
-
-  createFox();
-  createTrack();
-
-  window.addEventListener('resize', onWindowResize, false);
-  window.addEventListener('keydown', onKeyDown, false);
-  document.addEventListener('touchstart', onTouchStart, {passive:true});
-  document.addEventListener('touchend', onTouchEnd, {passive:true});
-
-  // initialize music after UI exists
-  initializeMusic();
-  // attempt background video but keep color fallback
-  setupVideoBackground();
-
-  // load high score from local storage
-  try {
-    const hs = parseInt(localStorage.getItem('quantumFoxHighScore') || '0', 10);
-    if (!isNaN(hs) && hs > 0) {
-      document.getElementById('high-score-display').textContent = `High Score: ${hs}`;
-      window.highScoreValue = hs;
-    }
-  } catch(e) {}
-
-  startGame();
-  lastTime = performance.now();
-  requestAnimationFrame(loop);
-}
-
-/* loop */
-function loop(now) {
-  requestAnimationFrame(loop);
-  const delta = (now - lastTime) / 16.6667; // approx frames ratio to 60fps
-  lastTime = now;
-
-  if (!gamePaused && gameActive) {
-    // update obstacles & powerups
-    updateObstacles(delta);
-
-    // bobbing
-    runningTime += 0.11 * delta;
-    foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
-
-    // floor scrolling: move in +Y UV so it looks like forward motion
-    if (floorTexture) {
-      // tune multiplier if scroll is too fast/slow
-      floorTexture.offset.y += gameSpeed * 0.02 * delta;
+      TWEEN.update();
+      renderer.render(scene, camera);
     }
 
-    // billboard orbs -> face camera, but keep them upright (avoid tilt)
-    for (const obs of obstacles) {
-      if (obs.userData && obs.userData.billboard) {
-        const camPos = camera.position.clone();
-        camPos.y = obs.position.y; // keep horizontal rotation only
-        obs.lookAt(camPos);
-      }
+    function onWindowResize(){
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    // optional background color progression
-    updateBackgroundColor();
-  }
+    // Helper functions exposed to UI
+    window.startGame = function(){ startGame(); };
+    window.showTutorial = function(){ document.getElementById('tutorial-screen').style.display='flex'; setTimeout(()=> document.getElementById('tutorial-screen').style.opacity=1,10); };
+    window.closeTutorial = function(){ document.getElementById('tutorial-screen').style.opacity=0; setTimeout(()=> document.getElementById('tutorial-screen').style.display='none',400); try{ localStorage.setItem(TUTORIAL_SEEN_KEY,'true'); }catch(e){} };
+    window.resumeGame = function(){ resumeGame(); };
+    window.quitToMenu = function(){ quitToMenu(); };
 
-  // update multipliers UI hide/show logic
-  if (multiplierActive && performance.now() < multiplierEndTime) {
-    document.getElementById('multiplier-display').style.display = 'block';
-  } else {
-    document.getElementById('multiplier-display').style.display = 'none';
-  }
-
-  TWEEN.update();
-  renderer.render(scene, camera);
-}
-
-function onWindowResize(){
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-}
-
-/* start on load */
-window.onload = function() {
-  init();
-};
-</script>
+    // start once page loaded
+    window.onload = function(){ init(); };
+  </script>
 </body>
 </html>
