@@ -381,6 +381,11 @@ const FOX_BASE_HEIGHT = 1.2;
 let touchStartX = 0, touchStartY = 0;
 const SWIPE_THRESHOLD = 50;
 
+// Delta time for frame-rate independence
+let lastTime = 0;
+const TARGET_FPS = 60;
+const FRAME_TIME = 1000 / TARGET_FPS;
+
 const container = document.getElementById('game-container');
 const scoreDisplay = document.getElementById('score-display');
 const gameOverScreen = document.getElementById('game-over-screen');
@@ -477,6 +482,7 @@ function startGame(){
   score = 0;
   gameSpeed = BASE_GAME_SPEED;
   currentLane = 1;
+  lastTime = 0; // Reset delta time
   if (foxPlayer) foxPlayer.position.x = lanePositions[currentLane];
 
   obstacles.forEach(o=>scene.remove(o));
@@ -504,12 +510,12 @@ function moveFox(newLane){
     .start();
 }
 
-function updateObstacles(){
-  gameSpeed += SPEED_INCREASE_RATE;
+function updateObstacles(deltaTime){
+  gameSpeed += SPEED_INCREASE_RATE * deltaTime;
 
   for (let i = obstacles.length - 1; i >= 0; i--){
     const obs = obstacles[i];
-    obs.position.z += gameSpeed;
+    obs.position.z += gameSpeed * deltaTime;
 
     if (obs.position.z > 4.8 && obs.position.z < 6.2) {
       if (obs.userData.lane === currentLane) {
@@ -526,7 +532,7 @@ function updateObstacles(){
     }
   }
 
-  obstacleSpawnTimer++;
+  obstacleSpawnTimer += deltaTime;
   const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140));
   if (obstacleSpawnTimer >= spawnRate) {
     createObstacle(Math.floor(Math.random()*3));
@@ -613,6 +619,7 @@ function init(){
   document.addEventListener('touchstart', onTouchStart, {passive:true});
   document.addEventListener('touchend', onTouchEnd, {passive:true});
 
+  lastTime = 0; // Initialize delta time
   startGame();
 }
 
@@ -623,18 +630,27 @@ function onWindowResize(){
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-function animate(){
+function animate(currentTime){
   requestAnimationFrame(animate);
+  
+  // Calculate delta time (time since last frame)
+  if (!lastTime) lastTime = currentTime;
+  const deltaTime = (currentTime - lastTime) / FRAME_TIME;
+  lastTime = currentTime;
+
+  // Cap delta time to prevent huge jumps (e.g., when tab is inactive)
+  const cappedDelta = Math.min(deltaTime, 3);
+
   TWEEN.update();
 
   if (gameActive) {
-    updateObstacles();
+    updateObstacles(cappedDelta);
 
-    runningTime += 0.11;
+    runningTime += 0.11 * cappedDelta;
     foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
 
     if (floorTexture) {
-      floorTexture.offset.y += gameSpeed * 0.05;
+      floorTexture.offset.y += gameSpeed * 0.05 * cappedDelta;
     }
 
     for (let obs of obstacles) {
