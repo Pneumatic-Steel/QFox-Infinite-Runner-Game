@@ -466,13 +466,13 @@ function createObstacle(laneIndex) {
   const size = 1.8;
   const geo = new THREE.PlaneGeometry(size, size);
   
-  // Orb material with high emissive intensity for bright golden halo
+  // Orb material with MAX emissive intensity for bright golden halo
   const mat = new THREE.MeshBasicMaterial({ 
     color:0xffffff, 
     transparent:true, 
     side: THREE.DoubleSide,
     emissive: 0xffcc00, // Golden glow color
-    emissiveIntensity: 8.0 
+    emissiveIntensity: 16.0 // 🔥 FIX 2: Increased from 8.0 to 16.0 for maximum glow
   });
 
   const orb = new THREE.Mesh(geo, mat);
@@ -661,11 +661,14 @@ function init(){
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
   
-  // Lighting: High intensity for a bright scene
-  scene.add(new THREE.AmbientLight(0xffffff, 10)); 
-  const spot = new THREE.SpotLight(0xffffff, 10, 50, Math.PI/6, 0.3);
+  // 🔥 FIX 1: Maximize scene brightness. Increased Ambient Light intensity (10 -> 20)
+  scene.add(new THREE.AmbientLight(0xffffff, 20)); 
+  
+  // 🔥 FIX 1: Maximize scene brightness. Increased SpotLight intensity (10 -> 20)
+  const spot = new THREE.SpotLight(0xffffff, 20, 50, Math.PI/6, 0.3);
   spot.position.set(0, 10, 10);
   scene.add(spot);
+
   createFox();
   createTrack();
   window.addEventListener('keydown', onKeyDown, false);
