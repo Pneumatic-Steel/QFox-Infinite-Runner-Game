@@ -130,14 +130,16 @@ let isFirebaseReady = false;
 window.highScoreValue = 0;
 window.qfoxUserId = 'Anonymous';
 
-/* Define color schemes for level transitions */
+/* Define color schemes for floor & background phase transition */
 const colorSchemes = [
-  new THREE.Color('#ff00ff'), // purple
-  new THREE.Color('#00ffff'), // cyan
-  new THREE.Color('#ffff00'), // yellow
-  new THREE.Color('#ff0000'), // red
-  // Add more colors if desired
+  { floor: new THREE.Color('#0d1117'), bg: '#0d1117' }, // initial dark
+  { floor: new THREE.Color('#1a202c'), bg: '#1a202c' }, // darker blue
+  { floor: new THREE.Color('#374151'), bg: '#374151' }, // blue-gray
+  { floor: new THREE.Color('#111827'), bg: '#111827' }, // darker
+  // Add more as desired
 ];
+
+let currentColorIndex = 0;
 
 const firebaseConfig = {
   apiKey: "AIzaSyBgfoQLeOOqbKBuM69SO88jhCpfwrz_koo",
@@ -291,7 +293,7 @@ document.getElementById('submit-score-btn').addEventListener('click', async () =
       setTimeout(() => { btn.disabled = false; btn.textContent = "RETRY"; }, 2000);
     }
   } else {
-    // If Firebase not ready, hide form and show leaderboard (local-only)
+    // Offline fallback
     btn.textContent = "OFFLINE";
     setTimeout(()=>{ if (form) form.style.display = 'none'; window.showLeaderboard(); }, 700);
   }
@@ -304,11 +306,8 @@ document.getElementById('initials-input').addEventListener('input', (e) => {
 window.showLeaderboard = async function() {
   const screen = document.getElementById('leaderboard-screen');
   const list = document.getElementById('leaderboard-list');
-  
   if (!screen || !list) return;
-  
   screen.style.display = 'flex';
-  // slight delay to allow CSS transition
   requestAnimationFrame(()=> screen.style.opacity = 1);
   list.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
 
@@ -321,12 +320,10 @@ window.showLeaderboard = async function() {
     const leaderboardRef = collection(db, 'leaderboard');
     const q = query(leaderboardRef, orderBy('score', 'desc'), limit(100));
     const snapshot = await getDocs(q);
-
     if (snapshot.empty) {
       list.innerHTML = 'Be the first to post a score!';
       return;
     }
-
     let html = '';
     snapshot.docs.forEach((docSnap, index) => {
       const data = docSnap.data();
@@ -334,7 +331,6 @@ window.showLeaderboard = async function() {
       const initials = data.initials || '???';
       const scoreVal = data.score || 0;
       const isMe = (user && data.uid === user.uid) ? 'color:#fcd34d; font-weight:bold;' : '';
-
       html += `
         <div class="leaderboard-entry" style="${isMe}">
           <span class="rank">${rank}</span>
@@ -343,43 +339,36 @@ window.showLeaderboard = async function() {
         </div>
       `;
     });
-
     list.innerHTML = html;
-
   } catch (error) {
     console.error("Leaderboard error:", error);
     list.innerHTML = `Error: ${error.message}`;
   }
 }
 
-// Initialize Firebase
 initFirebase();
 
-/* GAME ASSETS */
 const FOX_HEAD_URL   = 'head.png';
 const OBSTACLE_URL   = 'orb.png';
 const FLOOR_IMAGE_URL= 'floor.png';
 const BACKGROUND_VIDEO_URL = 'background.mp4';
 const MUSIC_URL      = 'music.wav';
 
-/* MUSIC */
 let bgm = null;
 function initializeMusic() {
   bgm = new Audio(MUSIC_URL);
   bgm.loop = true;
   bgm.volume = 0.7;
-
   function unlock() {
     bgm.play().catch(()=>{});
     document.removeEventListener('keydown', unlock);
     document.removeEventListener('touchstart', unlock);
   }
-
   document.addEventListener('keydown', unlock, { passive: true });
   document.addEventListener('touchstart', unlock, { passive: true });
 }
 
-/* THREE / GAME GLOBALS */
+/* GLOBALS */
 let scene, camera, renderer;
 let foxPlayer = null;
 let floorTexture = null;
@@ -414,7 +403,6 @@ const finalScoreEl = document.getElementById('final-score');
 
 const textureLoader = new THREE.TextureLoader();
 
-/* BACKGROUND VIDEO */
 function setupVideoBackground(){
   if (!scene) return;
   try {
@@ -424,11 +412,9 @@ function setupVideoBackground(){
     vid.muted = true;
     vid.playsInline = true;
     vid.play().catch(()=>{});
-
     const vtex = new THREE.VideoTexture(vid);
     vtex.minFilter = THREE.LinearFilter;
     vtex.magFilter = THREE.LinearFilter;
-
     scene.background = vtex;
   } catch (e) {
     console.warn('Video background failed:', e);
@@ -468,11 +454,10 @@ function createTrack(){
   floorTexture = tex;
 }
 
-/* CREATE OBSTACLES */
 function createObstacle(laneIndex) {
   if (!scene) return;
   const laneX = lanePositions[laneIndex];
-  const startZ = -120; // closer spawn so it's visible
+  const startZ = -120;
   const size = 1.8;
   const geo = new THREE.PlaneGeometry(size, size);
   const mat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, side: THREE.DoubleSide });
@@ -517,7 +502,7 @@ function startGame(){
   if (initialsForm) initialsForm.style.display = 'none';
 }
 
-/* MOVE FOX LANE */
+/* MOVE FOX */
 function moveFox(newLane){
   if (!gameActive) return;
   if (!foxPlayer) return;
@@ -554,20 +539,17 @@ function updateObstacles(deltaMultiplier){
         }
       }
     }
-    // Scoring
     if (obsZ > foxZ + 2 && !obs.userData.scored) {
       obs.userData.scored = true;
       score += 10;
       const scoreEl = document.getElementById('score-display');
       if (scoreEl) scoreEl.textContent = `Score: ${score}`;
     }
-    // Remove off-screen obstacles
     if (obsZ > 80) {
       try { scene.remove(obs); } catch(e){}
       obstacles.splice(i,1);
     }
   }
-  // Spawn new obstacle
   obstacleSpawnTimer++;
   const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140));
   if (obstacleSpawnTimer >= spawnRate) {
@@ -683,12 +665,11 @@ function animate(){
     updateObstacles(deltaMultiplier);
     runningTime += 0.11 * deltaMultiplier;
     if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
-    if (floorTexture) {
-      floorTexture.offset.y += gameSpeed * 0.05 * deltaMultiplier;
-    }
-    // Update fox color based on score
-    updateColorScheme();
-    // Billboard obstacles to camera
+
+    // PHASE FLOOR AND BACKGROUND COLOR
+    updateFloorAndBackground();
+
+    // Billboard obstacles
     if (camera) {
       for (let obs of obstacles) {
         if (obs.userData && obs.userData.billboard && obs.lookAt) {
@@ -701,42 +682,40 @@ function animate(){
   if (renderer && scene && camera) renderer.render(scene, camera);
 }
 
-// Call init and animate when page loads
+/* --- Color phase transition for floor and background --- */
+function updateFloorAndBackground() {
+  const levelIndex = Math.floor(score / 250);
+  const nextIndex = Math.min(levelIndex + 1, colorSchemes.length - 1);
+  const t = (score % 250) / 250; // progress between current and next
+
+  // Interpolate floor color
+  const currentFloorColor = colorSchemes[levelIndex].floor;
+  const nextFloorColor = colorSchemes[nextIndex].floor;
+  const interpolatedFloorColor = currentFloorColor.clone().lerp(nextFloorColor, t);
+
+  // Apply floor color
+  if (floorMesh && floorMesh.material) {
+    floorMesh.material.color = interpolatedFloorColor;
+    floorMesh.material.needsUpdate = true;
+  }
+
+  // Interpolate background color
+  const currentBgColor = new THREE.Color(colorSchemes[levelIndex].bg);
+  const nextBgColor = new THREE.Color(colorSchemes[nextIndex].bg);
+  const interpolatedBgColor = currentBgColor.clone().lerp(nextBgColor, t);
+
+  // Apply background color if using scene.background as color
+  // If you use video background, you could switch to a color overlay or change scene.background color
+  // For simplicity, if background is a video, you might overlay a semi-transparent color
+  // Here, we'll just set scene.background to a color for demo
+  scene.background = new THREE.Color(interpolatedBgColor.getHex());
+}
+
 window.addEventListener('load', () => {
   initializeMusic();
   init();
   animate();
 });
-
-// Expose functions
-window.startGame = startGame;
-window.showLeaderboard = window.showLeaderboard || function(){ 
-  const lb = document.getElementById('leaderboard-screen');
-  if (lb) {
-    lb.style.display = 'flex';
-    requestAnimationFrame(()=> lb.style.opacity = 1);
-  }
-};
-
-/* --- Color transition logic --- */
-
-function updateColorScheme() {
-  if (!foxPlayer || !foxPlayer.material) return;
-
-  const levelIndex = Math.floor(score / 250);
-  const nextIndex = Math.min(levelIndex + 1, colorSchemes.length - 1);
-  const t = (score % 250) / 250; // progress between current and next
-
-  const currentColor = colorSchemes[levelIndex];
-  const nextColor = colorSchemes[nextIndex];
-
-  // Interpolate colors
-  const interpolatedColor = currentColor.clone().lerp(nextColor, t);
-
-  // Apply to material
-  foxPlayer.material.color = interpolatedColor;
-  foxPlayer.material.needsUpdate = true;
-}
 </script>
 </body>
 </html>
