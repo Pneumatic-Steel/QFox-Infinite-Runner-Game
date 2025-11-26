@@ -89,7 +89,7 @@
   <div id="game-container"></div>
 
   <div id="game-over-screen">
-    <h2 style="font-size:3.25rem; color:#ef4444; margin:0 0 .6rem 0; font-weight:900;">GAME OVER</h2>
+    <h2 style="font-size:3.25rem; color:#ef4444; margin:0 0 .6rem 0; font-weight:900;">STATE COLLAPSE</h2>
     <p style="font-size:1.25rem; margin:0 0 1rem 0;">Final Distance Run: <span id="final-score" style="color:#fbbf24; font-weight:800;">0</span></p>
     
     <div id="initials-form">
@@ -132,7 +132,6 @@ window.qfoxUserId = 'Anonymous';
 
 /* Define color schemes for floor & background phase transition (VIBRANT FOG EDITION) */
 const colorSchemes = [
-  // 🔥 FIX 1: Brightened floor colors for better visibility and neon effect
   // LEVEL 1 (Score 0-249): Dark Blue/Black (Initial Look)
   { floor: new THREE.Color('#4a5568'), fog: new THREE.Color('#111827') }, // 0
   
@@ -430,6 +429,7 @@ function setupVideoBackground(){
 /* CREATE FOX */
 function createFox(){
   const geo = new THREE.PlaneGeometry(1.8, 1.8);
+  // Fox material switched to MeshBasicMaterial (no light interaction needed for the fox's sprite)
   const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent:true });
   foxPlayer = new THREE.Mesh(geo, mat);
   textureLoader.load(FOX_HEAD_URL, (tex)=>{
@@ -452,7 +452,9 @@ function createTrack(){
     t.repeat.set(4, 60);
     t.encoding = THREE.sRGBEncoding;
   });
-  const floorMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+  
+  // 🔥 FIX 1: Changed material to MeshLambertMaterial for better light reflection
+  const floorMat = new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide });
   floorMesh = new THREE.Mesh(floorGeo, floorMat);
   floorMesh.rotation.x = -Math.PI/2;
   floorMesh.position.set(0, 0, 0);
@@ -467,13 +469,14 @@ function createObstacle(laneIndex) {
   const size = 1.8;
   const geo = new THREE.PlaneGeometry(size, size);
   
-  // Orb material with MAX emissive intensity for bright golden halo
-  const mat = new THREE.MeshBasicMaterial({ 
-    color:0xffffff, 
+  // 🔥 FIX 1 & 2: Changed to MeshLambertMaterial AND set base color to black.
+  // This ensures the object's visible color comes *only* from the super-high emissive glow.
+  const mat = new THREE.MeshLambertMaterial({ 
+    color:0x000000, // <--- Base color set to black, so only emissive light is seen.
     transparent:true, 
     side: THREE.DoubleSide,
     emissive: 0xffcc00, // Golden glow color
-    emissiveIntensity: 32.0 // 🔥 FIX 2: Doubled again for maximum glow
+    emissiveIntensity: 32.0 // Maximum glow intensity
   });
 
   const orb = new THREE.Mesh(geo, mat);
@@ -748,6 +751,7 @@ function updateFloorAndBackground() {
   const interpolatedFloorColor = currentFloorColor.clone().lerp(nextFloorColor, t);
 
   if (floorMesh && floorMesh.material) {
+    // This is the floor color that is multiplied by the texture.
     floorMesh.material.color = interpolatedFloorColor;
     floorMesh.material.needsUpdate = true;
   }
@@ -773,4 +777,3 @@ window.addEventListener('load', () => {
 </script>
 </body>
 </html>
-
