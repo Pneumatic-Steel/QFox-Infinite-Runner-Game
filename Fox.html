@@ -188,10 +188,10 @@ canvas {
         <div id="high-score-display" class="info-box">High Score: 0</div>
         <div class="info-box text-sm">A / D (or Arrows) to Switch Lanes</div>
     </div>
-    <div id="touch-indicator">Swipe Left / Right to Switch Lanes</div>
+    <div id="touch-indicator">Tap Left / Right to Switch Lanes</div>
     <div id="game-container"></div>
     <div id="game-over-screen">
-        <h2 style="font-size:3.25rem; color:#ef4444; margin:0 0 .6rem 0; font-weight:900;">Game  Over</h2>
+        <h2 style="font-size:3.25rem; color:#ef4444; margin:0 0 .6rem 0; font-weight:900;">Game Over</h2>
         <p style="font-size:1.25rem; margin:0 0 1rem 0;">Final Distance Run: <span id="final-score" style="color:#fbbf24; font-weight:800;">0</span></p>
         <div id="initials-form">
             <p style="font-size:1.2rem; color:#fcd34d; font-weight:800; margin-bottom:10px;">NEW HIGH SCORE!</p>
@@ -502,8 +502,6 @@ canvas {
         const SPEED_INCREASE_RATE = 0.0006;
         let runningTime = 0;
         const FOX_BASE_HEIGHT = 1.2;
-        let touchStartX = 0, touchStartY = 0;
-        const SWIPE_THRESHOLD = 50;
         let lastTime = performance.now();
         const TARGET_FPS = 60;
         const FRAME_TIME = 1000 / TARGET_FPS;
@@ -582,13 +580,12 @@ canvas {
             const size = 1.8;
             const geo = new THREE.PlaneGeometry(size, size);
 
-            // Orb material with MAX emissive intensity for bright golden halo
             const mat = new THREE.MeshBasicMaterial({
                 color:0xffffff,
                 transparent:true,
                 side: THREE.DoubleSide,
-                emissive: 0xffcc00, // Golden glow color
-                emissiveIntensity: 16.0 // 🔥 FIX 2: Increased from 8.0 to 16.0 for maximum glow
+                emissive: 0xffcc00,
+                emissiveIntensity: 16.0
             });
 
             const orb = new THREE.Mesh(geo, mat);
@@ -614,7 +611,6 @@ canvas {
                 init();
             }
 
-            // Attempt to play music on a user gesture (which leads to startGame)
             if (bgm && bgm.paused) {
                 bgm.play().catch(error => {
                     console.warn("Audio playback failed (usually a mobile browser restriction):", error.message);
@@ -654,7 +650,7 @@ canvas {
         /* MOVE FOX */
         function moveFox(newLane){
             if (!gameActive) {
-                startGame(); // Start game on first input if not active
+                startGame();
                 return;
             }
             if (!foxPlayer) return;
@@ -681,7 +677,6 @@ canvas {
                 const obs = obstacles[i];
                 obs.position.z += gameSpeed * deltaMultiplier;
 
-                // Collision detection
                 const foxZ = foxPlayer.position.z;
                 const obsZ = obs.position.z;
                 const collisionRange = 0.9;
@@ -727,7 +722,7 @@ canvas {
             if (!gameActive) return;
 
             gameActive = false;
-            if (bgm) bgm.pause(); // Pause music on game over
+            if (bgm) bgm.pause();
 
             finalScoreEl.textContent = score;
             if (gameOverScreen) {
@@ -765,27 +760,22 @@ canvas {
             if (e.code === 'KeyD' || e.code === 'ArrowRight') moveFox(currentLane + 1);
         }
 
-        function onTouchStart(e){
-            if (!e.touches || e.touches.length === 0) return;
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-        }
-
         function onTouchEnd(e){
             if (!e.changedTouches || e.changedTouches.length === 0) return;
-
-            const dx = e.changedTouches[0].clientX - touchStartX;
-            const dy = e.changedTouches[0].clientY - touchStartY;
-
-            if (!gameActive && (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) < SWIPE_THRESHOLD)) {
-                // Start game on any swipe or simple tap
+            
+            const touchX = e.changedTouches[0].clientX;
+            const screenWidth = window.innerWidth;
+            
+            if (!gameActive) {
                 startGame();
                 return;
             }
-
-            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
-                if (dx > 0) moveFox(currentLane + 1);
-                else moveFox(currentLane - 1);
+            
+            // Left half of screen = move left, right half = move right
+            if (touchX < screenWidth / 2) {
+                moveFox(currentLane - 1);
+            } else {
+                moveFox(currentLane + 1);
             }
         }
 
@@ -797,7 +787,6 @@ canvas {
 
             scene = new THREE.Scene();
 
-            // Initialize Fog for smooth background color transition
             const initialFogColor = colorSchemes[0].fog;
             scene.fog = new THREE.Fog(initialFogColor, 40, 150);
 
@@ -812,9 +801,7 @@ canvas {
             renderer.setPixelRatio(window.devicePixelRatio || 1);
             container.appendChild(renderer.domElement);
 
-            // 🔥 FIX 1: Maximize scene brightness. Increased Ambient Light intensity (10 -> 20)
             scene.add(new THREE.AmbientLight(0xffffff, 20));
-            // 🔥 FIX 1: Maximize scene brightness. Increased SpotLight intensity (10 -> 20)
             const spot = new THREE.SpotLight(0xffffff, 20, 50, Math.PI/6, 0.3);
             spot.position.set(0, 10, 10);
             scene.add(spot);
@@ -824,10 +811,8 @@ canvas {
 
             window.addEventListener('keydown', onKeyDown, false);
             window.addEventListener('resize', onWindowResize, false);
-            document.addEventListener('touchstart', onTouchStart, {passive:true});
             document.addEventListener('touchend', onTouchEnd, {passive:true});
 
-            // UI Buttons
             const restartBtn = document.getElementById('restart-btn');
             if (restartBtn) restartBtn.addEventListener('click', () => startGame());
             const leaderboardBtn = document.getElementById('leaderboard-btn');
@@ -840,7 +825,6 @@ canvas {
                     setTimeout(()=> lb.style.display = 'none', 300);
                 }
             });
-            // Game is inactive until first user input
         }
 
         function onWindowResize(){
@@ -864,17 +848,14 @@ canvas {
                 updateObstacles(deltaMultiplier);
                 runningTime += 0.11 * deltaMultiplier;
 
-                if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1; // Bobbing animation
+                if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
 
-                // Floor movement is re-added here by scrolling the texture
                 if (floorTexture) {
                     floorTexture.offset.y += gameSpeed * 0.02 * deltaMultiplier;
                 }
 
-                // PHASE FLOOR AND BACKGROUND COLOR
                 updateFloorAndBackground();
 
-                // Billboard obstacles
                 if (camera) {
                     for (let obs of obstacles) {
                         if (obs.userData && obs.userData.billboard && obs.lookAt) {
@@ -887,20 +868,12 @@ canvas {
             if (renderer && scene && camera) renderer.render(scene, camera);
         }
 
-        /* --- Color phase transition for floor and background (FOG EDITION) --- */
         function updateFloorAndBackground() {
             const numColors = colorSchemes.length;
-
-            // Calculate the current color index, making it loop using modulo (%)
             let levelIndex = Math.floor(score / 250) % numColors;
-
-            // Calculate the next color index, ensuring it wraps back to 0 at the end
             const nextIndex = (levelIndex + 1) % numColors;
-
-            // 't' is the progress (0.0 to 1.0) through the current level's transition
             const t = (score % 250) / 250;
 
-            // --- FLOOR COLOR TRANSITION ---
             const currentFloorColor = colorSchemes[levelIndex].floor;
             const nextFloorColor = colorSchemes[nextIndex].floor;
             const interpolatedFloorColor = currentFloorColor.clone().lerp(nextFloorColor, t);
@@ -910,15 +883,11 @@ canvas {
                 floorMesh.material.needsUpdate = true;
             }
 
-            // FOG (SCENE TINT) COLOR TRANSITION
             const currentFogColor = colorSchemes[levelIndex].fog;
             const nextFogColor = colorSchemes[nextIndex].fog;
-
-            // Lerp is the smooth transition function
             const interpolatedFogColor = currentFogColor.clone().lerp(nextFogColor, t);
 
             if (scene.fog) {
-                // Apply the smoothly interpolated color to the FOG
                 scene.fog.color = interpolatedFogColor;
             }
         }
@@ -926,9 +895,8 @@ canvas {
         window.addEventListener('load', () => {
             initializeMusic();
             init();
-            animate(); // Starts the rendering loop, but the game is inactive until user input
+            animate();
         });
     </script>
 </body>
 </html>
-
