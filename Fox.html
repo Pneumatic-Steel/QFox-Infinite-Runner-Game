@@ -1,825 +1,933 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Quantum Fox: Endless Runner</title>
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/23.1.1/tween.umd.js"></script>
-
-  <style>
-    body { margin:0; overflow:hidden; background:#0d1117; color:#f3f4f6; font-family:Inter,system-ui,Arial; }
-    canvas { display:block; }
-
-    #ui-container{
-      position:absolute; top:0; left:0; right:0;
-      padding:10px 20px; z-index:10;
-      display:flex; justify-content:space-between; align-items:center;
-      pointer-events:none;
-    }
-
-    .info-box{
-      background: rgba(0,0,0,0.7);
-      padding:8px 16px;
-      border-radius:8px;
-      font-size:1.1rem;
-      font-weight:700;
-      border:2px solid #3b82f6;
-      min-width:140px;
-      text-align:center;
-    }
-
-    #touch-indicator{
-      position:absolute;
-      bottom:20px;
-      left:50%;
-      transform:translateX(-50%);
-      z-index:10;
-      background: rgba(0,0,0,0.7);
-      padding:8px 14px;
-      border-radius:8px;
-      color:#fcd34d;
-      border:2px solid #3b82f6;
-      pointer-events:none;
-      font-weight:700;
-    }
-
-    #game-over-screen, #leaderboard-screen{
-      position:absolute; inset:0;
-      display:none; z-index:30;
-      align-items:center; justify-content:center;
-      background: rgba(0,0,0,0.9);
-      color:#f3f4f6;
-      flex-direction:column;
-      opacity:0; transition:opacity .4s;
-      text-align:center;
-      overflow-y:auto;
-      padding:20px;
-    }
-
-    .button-group { display:flex; gap:15px; margin-top:20px; pointer-events:auto; }
-
-    .restart-button, .close-button{
-      padding:12px 22px;
-      border-radius:.5rem;
-      font-weight:800;
-      border:none;
-      cursor:pointer;
-      background:#fcd34d;
-      color:#111827;
-      transition: all 0.2s;
-    }
-
-    .restart-button:hover, .close-button:hover {
-      background:#fbbf24;
-      transform:translateY(-2px);
-    }
-
-    #initials-form{
-      display:none;
-      flex-direction:column;
-      align-items:center;
-      margin:20px 0;
-      background: rgba(255,255,255,0.1);
-      padding:20px;
-      border-radius:12px;
-      border:2px solid #fcd34d;
-      animation: pulse-border 2s infinite;
-    }
-
-    @keyframes pulse-border{
-      0% { border-color:#fcd34d; box-shadow:0 0 0 0 rgba(252,211,77,0.4); }
-      70% { border-color:#fcd34d; box-shadow:0 0 0 10px rgba(252,211,77,0); }
-      100% { border-color:#fcd34d; box-shadow:0 0 0 0 rgba(252,211,77,0); }
-    }
-
-    #initials-input{
-      background:#111827;
-      border:2px solid #4b5563;
-      color:#10b981;
-      font-size:3rem;
-      text-align:center;
-      width:180px;
-      border-radius:8px;
-      text-transform:uppercase;
-      margin-bottom:15px;
-      font-family:monospace;
-      letter-spacing:0.2em;
-    }
-
-    #initials-input:focus{
-      outline:none;
-      border-color:#10b981;
-    }
-
-    #submit-score-btn{
-      background:#10b981;
-      color:#064e3b;
-      padding:10px 30px;
-      border-radius:6px;
-      font-weight:800;
-      border:none;
-      cursor:pointer;
-      font-size:1.2rem;
-      transition:all 0.2s;
-    }
-
-    #submit-score-btn:disabled{
-      background:#4b5563;
-      cursor:not-allowed;
-      transform:none;
-    }
-
-    #leaderboard-content{
-      width:90%;
-      max-width:600px;
-      margin-top:20px;
-      background:rgba(0,0,0,0.7);
-      border-radius:10px;
-      padding:20px;
-      border:2px solid #10b981;
-      max-height:60vh;
-      overflow-y:auto;
-    }
-
-    .leaderboard-entry{
-      display:flex;
-      justify-content:space-between;
-      padding:8px 0;
-      border-bottom:1px dashed #374151;
-      font-size:1.1rem;
-    }
-
-    .leaderboard-entry:last-child{ border-bottom:none; }
-
-    .leaderboard-entry.header{
-      font-weight:800;
-      font-size:1.3rem;
-      color:#fcd34d;
-      border-bottom:2px solid #fcd34d;
-      margin-bottom:10px;
-    }
-
-    .leaderboard-entry .rank{ width:10%; text-align:center; color:#10b981; }
-    .leaderboard-entry .initials{ width:30%; text-align:left; }
-    .leaderboard-entry .score{ width:30%; text-align:right; }
-  </style>
-</head>
-
-<body>
-  <div id="ui-container">
-    <div id="score-display" class="info-box">Score: 0</div>
-    <div id="high-score-display" class="info-box">High Score: 0</div>
-    <div class="info-box text-sm">A / D (or Arrows) to Switch Lanes</div>
-  </div>
-
-  <div id="touch-indicator">Tap LEFT / RIGHT side to Switch Lanes</div>
-
-  <div id="game-container"></div>
-
-  <div id="game-over-screen">
-    <h2 style="font-size:3.25rem; color:#ef4444; margin:0 0 .6rem 0; font-weight:900;">STATE COLLAPSE</h2>
-    <p style="font-size:1.25rem; margin:0 0 1rem 0;">Final Distance Run: <span id="final-score" style="color:#fbbf24; font-weight:800;">0</span></p>
-
-    <div id="initials-form">
-      <p style="font-size:1.2rem; color:#fcd34d; font-weight:800; margin-bottom:10px;">NEW HIGH SCORE!</p>
-      <input type="text" id="initials-input" maxlength="3" placeholder="___" autocomplete="off">
-      <button id="submit-score-btn">SUBMIT</button>
-    </div>
-
-    <div class="button-group">
-      <button id="restart-btn" class="restart-button">RESTART</button>
-      <button id="leaderboard-btn" class="restart-button">LEADERBOARD</button>
-    </div>
-
-    <p style="margin-top:12px; color:#9ca3af; font-size:0.9rem;">User ID: <span id="user-id-display">Anonymous</span></p>
-  </div>
-
-  <div id="leaderboard-screen">
-    <button id="close-leaderboard" class="close-button" style="position:absolute; top:20px; right:20px; padding:8px 16px; font-size:1.1rem;">✕ CLOSE</button>
-    <h2 style="font-size:3rem; color:#10b981; margin-bottom:20px; font-weight:900;">TOP 100 RUNNERS</h2>
-    <div id="leaderboard-content">
-      <div class="leaderboard-entry header">
-        <span class="rank">#</span>
-        <span class="initials">INITIALS</span>
-        <span class="score">SCORE</span>
-      </div>
-      <div id="leaderboard-list">Loading...</div>
-    </div>
-  </div>
-
-  <script type="module">
-    /* FIREBASE SETUP */
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, doc, setDoc, getDoc, addDoc, query, orderBy, limit, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    const HIGH_SCORE_KEY = 'quantumFoxHighScore';
-    let db, auth, user;
-    let isFirebaseReady = false;
-    window.highScoreValue = 0;
-    window.qfoxUserId = 'Anonymous';
-
-    /* Define color schemes for floor & background phase transition (VIBRANT FOG EDITION) */
-    const colorSchemes = [
-      { floor: new THREE.Color('#1f2937'), fog: new THREE.Color('#111827') }, // 0
-      { floor: new THREE.Color('#A01010'), fog: new THREE.Color('#FF0000') }, // 1
-      { floor: new THREE.Color('#008000'), fog: new THREE.Color('#00FF00') }, // 2
-      { floor: new THREE.Color('#1010A0'), fog: new THREE.Color('#00FFFF') }, // 3
-      { floor: new THREE.Color('#A010A0'), fog: new THREE.Color('#FF00FF') }, // 4
-      { floor: new THREE.Color('#B8860B'), fog: new THREE.Color('#FF8C00') }, // 5
-    ];
-    let currentColorIndex = 0;
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyBgfoQLeOOqbKBuM69SO88jhCpfwrz_koo",
-      authDomain: "qfox-29287.firebaseapp.com",
-      projectId: "qfox-29287",
-      storageBucket: "qfox-29287.appspot.com",
-      messagingSenderId: "778217166086",
-      appId: "1:778217166086:web:1480312c499fdec6aafa87",
-      measurementId: "G-VGEY7GV2QD"
-    };
-
-    async function initFirebase() {
-      try {
-        const app = initializeApp(firebaseConfig);
-        auth = getAuth(app);
-        db = getFirestore(app);
-        await signInAnonymously(auth);
-        onAuthStateChanged(auth, (currentUser) => {
-          if (currentUser) {
-            user = currentUser;
-            window.qfoxUserId = user.uid.substring(0, 8);
-            const uidEl = document.getElementById('user-id-display');
-            if (uidEl) uidEl.textContent = window.qfoxUserId;
-            isFirebaseReady = true;
-            loadHighScore();
-          } else {
-            isFirebaseReady = false;
-          }
-        });
-      } catch (error) {
-        console.error("Firebase init error:", error);
-      }
-    }
-
-    async function loadHighScore() {
-      try {
-        const localScore = localStorage.getItem(HIGH_SCORE_KEY);
-        if (localScore !== null) {
-          window.highScoreValue = parseInt(localScore, 10) || 0;
-          const hEl = document.getElementById('high-score-display');
-          if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
-        }
-      } catch (e) {}
-
-      if (!isFirebaseReady || !user) return;
-      try {
-        const scoreDocRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(scoreDocRef);
-        if (docSnap.exists()) {
-          const firebaseScore = docSnap.data().highScore || 0;
-          if (firebaseScore > window.highScoreValue) {
-            window.highScoreValue = firebaseScore;
-            const hEl = document.getElementById('high-score-display');
-            if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
-            try { localStorage.setItem(HIGH_SCORE_KEY, window.highScoreValue.toString()); } catch (e) {}
-          }
-        }
-      } catch (error) {
-        console.error("Load score error:", error);
-      }
-    }
-
-    window.handleGameOver = async function(finalScore) {
-      if (finalScore > window.highScoreValue) {
-        window.highScoreValue = finalScore;
-        const hEl = document.getElementById('high-score-display');
-        if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
-        try { localStorage.setItem(HIGH_SCORE_KEY, finalScore.toString()); } catch (e) {}
-
-        if (isFirebaseReady && user) {
-          try {
-            const scoreDocRef = doc(db, 'users', user.uid);
-            await setDoc(scoreDocRef, { highScore: finalScore, timestamp: serverTimestamp() }, { merge: true });
-          } catch (e) { console.error("Save error:", e); }
-        }
-      }
-
-      const form = document.getElementById('initials-form');
-      if (form) form.style.display = 'none';
-
-      if (isFirebaseReady && user) {
-        try {
-          const leaderboardRef = collection(db, 'leaderboard');
-          const lowScoreQuery = query(leaderboardRef, orderBy('score', 'desc'), limit(1000));
-          const querySnapshot = await getDocs(lowScoreQuery);
-          let lowestTopScore = 0;
-          if (!querySnapshot.empty) {
-            const docs = querySnapshot.docs;
-            lowestTopScore = docs[docs.length - 1].data().score || 0;
-          }
-          if (finalScore > lowestTopScore || querySnapshot.size < 1000) {
-            showInitialsInput(finalScore);
-          }
-        } catch (error) {
-          console.error("Leaderboard check failed:", error);
-        }
-      }
-    }
-
-    function showInitialsInput(score) {
-      const form = document.getElementById('initials-form');
-      const input = document.getElementById('initials-input');
-      const btn = document.getElementById('submit-score-btn');
-      if (!form || !input || !btn) return;
-      form.style.display = 'flex';
-      input.value = '';
-      try { input.focus(); } catch(e){}
-      btn.textContent = "SUBMIT";
-      btn.disabled = false;
-      form.dataset.score = score;
-    }
-
-    document.getElementById('submit-score-btn').addEventListener('click', async () => {
-      const form = document.getElementById('initials-form');
-      const input = document.getElementById('initials-input');
-      const btn = document.getElementById('submit-score-btn');
-      if (!form || !input || !btn) return;
-      let initials = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
-      if (!initials) initials = "AAA";
-      const score = parseInt(form.dataset.score || '0');
-      btn.textContent = "SAVING...";
-      btn.disabled = true;
-      if (isFirebaseReady && user) {
-        try {
-          const leaderboardRef = collection(db, 'leaderboard');
-          await addDoc(leaderboardRef, { score: score, initials: initials, uid: user.uid, timestamp: serverTimestamp() });
-          btn.textContent = "SAVED!";
-          setTimeout(() => {
-            if (form) form.style.display = 'none';
-            window.showLeaderboard();
-          }, 800);
-        } catch (e) {
-          console.error("Submit error:", e);
-          btn.textContent = "ERROR";
-          setTimeout(() => { btn.disabled = false; btn.textContent = "RETRY"; }, 2000);
-        }
-      } else {
-        // Offline fallback
-        btn.textContent = "OFFLINE";
-        setTimeout(()=>{ if (form) form.style.display = 'none'; window.showLeaderboard(); }, 700);
-      }
-    });
-
-    document.getElementById('initials-input').addEventListener('input', (e) => {
-      e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
-    });
-
-    window.showLeaderboard = async function() {
-      const screen = document.getElementById('leaderboard-screen');
-      const list = document.getElementById('leaderboard-list');
-      if (!screen || !list) return;
-      screen.style.display = 'flex';
-      requestAnimationFrame(()=> screen.style.opacity = 1);
-      list.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
-      if (!isFirebaseReady) { list.innerHTML = 'Firebase not ready.'; return; }
-      try {
-        const leaderboardRef = collection(db, 'leaderboard');
-        const q = query(leaderboardRef, orderBy('score', 'desc'), limit(100));
-        const snapshot = await getDocs(q);
-        if (snapshot.empty) { list.innerHTML = 'Be the first to post a score!'; return; }
-        let html = '';
-        snapshot.docs.forEach((docSnap, index) => {
-          const data = docSnap.data();
-          const rank = index + 1;
-          const initials = data.initials || '???';
-          const scoreVal = data.score || 0;
-          const isMe = (user && data.uid === user.uid) ? 'color:#fcd34d; font-weight:bold;' : '';
-          html += `<div class="leaderboard-entry" style="${isMe}"> <span class="rank">${rank}</span> <span class="initials">${initials}</span> <span class="score">${scoreVal.toLocaleString()}</span> </div>`;
-        });
-        list.innerHTML = html;
-      } catch (error) {
-        console.error("Leaderboard error:", error);
-        list.innerHTML = `Error: ${error.message}`;
-      }
-    }
-
-    initFirebase();
-
-    const FOX_HEAD_URL = 'head.png';
-    const OBSTACLE_URL = 'orb.png';
-    const FLOOR_IMAGE_URL= 'floor.png';
-    const BACKGROUND_VIDEO_URL = 'background.mp4';
-    const MUSIC_URL = 'music.wav';
-
-    let bgm = null;
-    function initializeMusic() {
-      bgm = new Audio(MUSIC_URL);
-      bgm.loop = true;
-      bgm.volume = 0.7;
-    }
-
-    /* GLOBALS */
-    let scene, camera, renderer;
-    let foxPlayer = null;
-    let floorTexture = null;
-    let floorMesh = null;
-    let score = 0;
-    let gameActive = false;
-    let lanePositions = [-3.5, 0, 3.5];
-    let currentLane = 1;
-    let obstacles = [];
-    let obstacleSpawnTimer = 0;
-    let gameSpeed = 0.25;
-    let isSwitchingLanes = false;
-    const BASE_GAME_SPEED = 0.25;
-    const SPEED_INCREASE_RATE = 0.0006;
-    let runningTime = 0;
-    const FOX_BASE_HEIGHT = 1.2;
-    let touchStartX = 0, touchStartY = 0;
-    const SWIPE_THRESHOLD = 50;
-    let lastTime = performance.now();
-    const TARGET_FPS = 60;
-    const FRAME_TIME = 1000 / TARGET_FPS;
-
-    const container = document.getElementById('game-container');
-    const scoreDisplay = document.getElementById('score-display');
-    const gameOverScreen = document.getElementById('game-over-screen');
-    const finalScoreEl = document.getElementById('final-score');
-    const textureLoader = new THREE.TextureLoader();
-
-    function setupVideoBackground(){
-      if (!scene) return;
-      try {
-        const vid = document.createElement('video');
-        vid.src = BACKGROUND_VIDEO_URL;
-        vid.loop = true;
-        vid.muted = true;
-        vid.playsInline = true;
-        vid.play().catch(()=>{});
-        const vtex = new THREE.VideoTexture(vid);
-        vtex.minFilter = THREE.LinearFilter;
-        vtex.magFilter = THREE.LinearFilter;
-        scene.background = vtex;
-      } catch (e) {
-        console.warn('Video background failed:', e);
-      }
-    }
-
-    /* CREATE FOX */
-    function createFox(){
-      const geo = new THREE.PlaneGeometry(1.8, 1.8);
-      const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent:true });
-      foxPlayer = new THREE.Mesh(geo, mat);
-      textureLoader.load(FOX_HEAD_URL, (tex)=>{
-        tex.encoding = THREE.sRGBEncoding;
-        foxPlayer.material = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.FrontSide });
-        foxPlayer.material.needsUpdate = true;
-      });
-      foxPlayer.position.set(lanePositions[currentLane], FOX_BASE_HEIGHT, 5);
-      scene.add(foxPlayer);
-    }
-
-    /* CREATE TRACK */
-    function createTrack(){
-      const trackWidth = 18;
-      const trackLength = 600;
-      const floorGeo = new THREE.PlaneGeometry(trackWidth, trackLength, 1, 1);
-      const tex = textureLoader.load(FLOOR_IMAGE_URL, t => {
-        t.wrapS = THREE.RepeatWrapping;
-        t.wrapT = THREE.RepeatWrapping;
-        t.repeat.set(4, 60);
-        t.encoding = THREE.sRGBEncoding;
-      });
-      const floorMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
-      floorMesh = new THREE.Mesh(floorGeo, floorMat);
-      floorMesh.rotation.x = -Math.PI/2;
-      floorMesh.position.set(0, 0, 0);
-      scene.add(floorMesh);
-      floorTexture = tex;
-    }
-
-    function createObstacle(laneIndex) {
-      if (!scene) return;
-      const laneX = lanePositions[laneIndex];
-      const startZ = -120;
-      const size = 1.8;
-      // plane so it can billboard and accept a map
-      const geo = new THREE.PlaneGeometry(size, size);
-
-      // Use MeshStandardMaterial so emissive + emissiveIntensity work properly.
-      // Note: no comments inside the object literal — that previously broke parsing.
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        transparent: true,
-        side: THREE.DoubleSide,
-        emissive: 0xffcc00,
-        emissiveIntensity: 4.0,
-        metalness: 0.0,
-        roughness: 0.5
-      });
-
-      const orb = new THREE.Mesh(geo, mat);
-      orb.position.set(laneX, 1.35, startZ);
-      orb.userData.lane = laneIndex;
-      orb.userData.billboard = true;
-      // load texture map (orb image)
-      textureLoader.load(OBSTACLE_URL, tex => {
-        tex.encoding = THREE.sRGBEncoding;
-        tex.minFilter = THREE.LinearMipMapLinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        orb.material.map = tex;
-        orb.material.needsUpdate = true;
-      });
-
-      // add overlay halo (additive) so glow remains visible at speed
-      const haloGeo = new THREE.PlaneGeometry(size * 1.8, size * 1.8);
-      const haloMat = new THREE.MeshBasicMaterial({
-        color: 0xffcc00,
-        transparent: true,
-        opacity: 0.35,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.DoubleSide
-      });
-      const halo = new THREE.Mesh(haloGeo, haloMat);
-      halo.position.set(0, 0, -0.01);
-      orb.add(halo);
-
-      orb.renderOrder = 1;
-      obstacles.push(orb);
-      scene.add(orb);
-    }
-
-    /* GAME CONTROL */
-    function startGame(){
-      if (!scene || !renderer || !camera) { init(); }
-
-      // Attempt to play music on a user gesture (which leads to startGame)
-      if (bgm && bgm.paused) {
-        bgm.play().catch(error => { console.warn("Audio playback failed (usually a mobile browser restriction):", error.message); });
-      }
-
-      gameActive = true;
-      score = 0;
-      gameSpeed = BASE_GAME_SPEED;
-      currentLane = 1;
-      if (foxPlayer) foxPlayer.position.x = lanePositions[currentLane];
-      obstacles.forEach(o=>{ try { scene.remove(o); } catch(e){} });
-      obstacles = [];
-      obstacleSpawnTimer = 0;
-      const scoreEl = document.getElementById('score-display');
-      if (scoreEl) scoreEl.textContent = `Score: ${score}`;
-      if (gameOverScreen) { gameOverScreen.style.display = 'none'; gameOverScreen.style.opacity = 0; }
-      const lb = document.getElementById('leaderboard-screen');
-      if (lb) lb.style.display = 'none';
-      const initialsForm = document.getElementById('initials-form');
-      if (initialsForm) initialsForm.style.display = 'none';
-    }
-
-    /* MOVE FOX */
- function moveFox(newLane){
-  if (!gameActive) {
-    startGame();
-    return;
-  }
-
-  if (!foxPlayer) return;
-  if (isSwitchingLanes) return; // lock to prevent multi-hop
-  if (newLane < 0 || newLane > 2) return;
-  if (newLane === currentLane) return;
-
-  isSwitchingLanes = true;
-  currentLane = newLane;
-
-  const targetX = lanePositions[currentLane];
-
-  TWEEN.removeAll();
-  new TWEEN.Tween(foxPlayer.position)
-    .to({ x: targetX }, 150)
-    .easing(TWEEN.Easing.Quadratic.Out)
-    .onComplete(() => {
-      isSwitchingLanes = false; // unlock when lane reached
-    })
-    .start();
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Quantum Fox: Endless Runner</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/23.1.1/tween.umd.js"></script>
+<style>
+body {
+    margin:0;
+    overflow:hidden;
+    background:#0d1117;
+    color:#f3f4f6;
+    font-family:Inter,system-ui,Arial;
 }
+canvas {
+    display:block;
+}
+#ui-container{
+    position:absolute;
+    top:0;
+    left:0;
+    right:0;
+    padding:10px 20px;
+    z-index:10;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    pointer-events:none;
+}
+.info-box{
+    background: rgba(0,0,0,0.7);
+    padding:8px 16px;
+    border-radius:8px;
+    font-size:1.1rem;
+    font-weight:700;
+    border:2px solid #3b82f6;
+    min-width:140px;
+    text-align:center;
+}
+#touch-indicator{
+    position:absolute;
+    bottom:20px;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:10;
+    background: rgba(0,0,0,0.7);
+    padding:8px 14px;
+    border-radius:8px;
+    color:#fcd34d;
+    border:2px solid #3b82f6;
+    pointer-events:none;
+    font-weight:700;
+}
+#game-over-screen, #leaderboard-screen{
+    position:absolute;
+    inset:0;
+    display:none;
+    z-index:30;
+    align-items:center;
+    justify-content:center;
+    background: rgba(0,0,0,0.9);
+    color:#f3f4f6;
+    flex-direction:column;
+    opacity:0;
+    transition:opacity .4s;
+    text-align:center;
+    overflow-y:auto;
+    padding:20px;
+}
+.button-group {
+    display:flex;
+    gap:15px;
+    margin-top:20px;
+    pointer-events:auto;
+}
+.restart-button, .close-button{
+    padding:12px 22px;
+    border-radius:.5rem;
+    font-weight:800;
+    border:none;
+    cursor:pointer;
+    background:#fcd34d;
+    color:#111827;
+    transition: all 0.2s;
+}
+.restart-button:hover, .close-button:hover {
+    background:#fbbf24;
+    transform:translateY(-2px);
+}
+#initials-form {
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    margin:20px 0;
+    background: rgba(255,255,255,0.1);
+    padding:20px;
+    border-radius:12px;
+    border:2px solid #fcd34d;
+    animation: pulse-border 2s infinite;
+}
+@keyframes pulse-border {
+    0% { border-color:#fcd34d; box-shadow:0 0 0 0 rgba(252,211,77,0.4); }
+    70% { border-color:#fcd34d; box-shadow:0 0 0 10px rgba(252,211,77,0); }
+    100% { border-color:#fcd34d; box-shadow:0 0 0 0 rgba(252,211,77,0); }
+}
+#initials-input {
+    background:#111827;
+    border:2px solid #4b5563;
+    color:#10b981;
+    font-size:3rem;
+    text-align:center;
+    width:180px;
+    border-radius:8px;
+    text-transform:uppercase;
+    margin-bottom:15px;
+    font-family:monospace;
+    letter-spacing:0.2em;
+}
+#initials-input:focus {
+    outline:none;
+    border-color:#10b981;
+}
+#submit-score-btn {
+    background:#10b981;
+    color:#064e3b;
+    padding:10px 30px;
+    border-radius:6px;
+    font-weight:800;
+    border:none;
+    cursor:pointer;
+    font-size:1.2rem;
+    transition:all 0.2s;
+}
+#submit-score-btn:disabled {
+    background:#4b5563;
+    cursor:not-allowed;
+    transform:none;
+}
+#leaderboard-content {
+    width:90%;
+    max-width:600px;
+    margin-top:20px;
+    background:rgba(0,0,0,0.7);
+    border-radius:10px;
+    padding:20px;
+    border:2px solid #10b981;
+    max-height:60vh;
+    overflow-y:auto;
+}
+.leaderboard-entry {
+    display:flex;
+    justify-content:space-between;
+    padding:8px 0;
+    border-bottom:1px dashed #374151;
+    font-size:1.1rem;
+}
+.leaderboard-entry:last-child {
+    border-bottom:none;
+}
+.leaderboard-entry.header {
+    font-weight:800;
+    font-size:1.3rem;
+    color:#fcd34d;
+    border-bottom:2px solid #fcd34d;
+    margin-bottom:10px;
+}
+.leaderboard-entry .rank {
+    width:10%;
+    text-align:center;
+    color:#10b981;
+}
+.leaderboard-entry .initials {
+    width:30%;
+    text-align:left;
+}
+.leaderboard-entry .score {
+    width:30%;
+    text-align:right;
+}
+</style>
+</head>
+<body>
+    <div id="ui-container">
+        <div id="score-display" class="info-box">Score: 0</div>
+        <div id="high-score-display" class="info-box">High Score: 0</div>
+        <div class="info-box text-sm">A / D (or Arrows) to Switch Lanes</div>
+    </div>
+    <div id="touch-indicator">Swipe Left / Right to Switch Lanes</div>
+    <div id="game-container"></div>
+    <div id="game-over-screen">
+        <h2 style="font-size:3.25rem; color:#ef4444; margin:0 0 .6rem 0; font-weight:900;">STATE COLLAPSE</h2>
+        <p style="font-size:1.25rem; margin:0 0 1rem 0;">Final Distance Run: <span id="final-score" style="color:#fbbf24; font-weight:800;">0</span></p>
+        <div id="initials-form">
+            <p style="font-size:1.2rem; color:#fcd34d; font-weight:800; margin-bottom:10px;">NEW HIGH SCORE!</p>
+            <input type="text" id="initials-input" maxlength="3" placeholder="___" autocomplete="off">
+            <button id="submit-score-btn">SUBMIT</button>
+        </div>
+        <div class="button-group">
+            <button id="restart-btn" class="restart-button">RESTART</button>
+            <button id="leaderboard-btn" class="restart-button">LEADERBOARD</button>
+        </div>
+        <p style="margin-top:12px; color:#9ca3af; font-size:0.9rem;">User ID: <span id="user-id-display">Anonymous</span></p>
+    </div>
+    <div id="leaderboard-screen">
+        <button id="close-leaderboard" class="close-button" style="position:absolute; top:20px; right:20px; padding:8px 16px; font-size:1.1rem;">✕ CLOSE</button>
+        <h2 style="font-size:3rem; color:#10b981; margin-bottom:20px; font-weight:900;">TOP 100 RUNNERS</h2>
+        <div id="leaderboard-content">
+            <div class="leaderboard-entry header">
+                <span class="rank">#</span>
+                <span class="initials">INITIALS</span>
+                <span class="score">SCORE</span>
+            </div>
+            <div id="leaderboard-list">Loading...</div>
+        </div>
+    </div>
+    <script type="module">
+        /* FIREBASE SETUP */
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, addDoc, query, orderBy, limit, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    /* UPDATE OBSTACLES */
-    function updateObstacles(deltaMultiplier){
-      if (!foxPlayer) return;
-      gameSpeed += SPEED_INCREASE_RATE * deltaMultiplier;
-      for (let i = obstacles.length - 1; i >= 0; i--){
-        const obs = obstacles[i];
-        obs.position.z += gameSpeed * deltaMultiplier;
-        // Collision detection
-        const foxZ = foxPlayer.position.z;
-        const obsZ = obs.position.z;
-        const collisionRange = 0.9;
-        if (obsZ >= foxZ - collisionRange && obsZ <= foxZ + collisionRange) {
-          if (obs.userData.lane === currentLane) {
-            const foxX = foxPlayer.position.x;
-            const obsX = obs.position.x;
-            const lateralRange = 0.9;
-            if (Math.abs(foxX - obsX) < lateralRange) {
-              doGameOver();
-              return;
+        const HIGH_SCORE_KEY = 'quantumFoxHighScore';
+        let db, auth, user;
+        let isFirebaseReady = false;
+        window.highScoreValue = 0;
+        window.qfoxUserId = 'Anonymous';
+
+        /* Define color schemes for floor & background phase transition (VIBRANT FOG EDITION) */
+        const colorSchemes = [
+            // LEVEL 1 (Score 0-249): Dark Blue/Black (Initial Look)
+            { floor: new THREE.Color('#1f2937'), fog: new THREE.Color('#111827') }, // 0
+            // LEVEL 2 (Score 250-499): Vibrant Red
+            { floor: new THREE.Color('#A01010'), fog: new THREE.Color('#FF0000') }, // 1
+            // LEVEL 3 (Score 500-749): Bright Green
+            { floor: new THREE.Color('#008000'), fog: new THREE.Color('#00FF00') }, // 2
+            // LEVEL 4 (Score 750-999): Electric Blue
+            { floor: new THREE.Color('#1010A0'), fog: new THREE.Color('#00FFFF') }, // 3
+            // LEVEL 5 (Score 1000-1249): Hot Pink/Magenta
+            { floor: new THREE.Color('#A010A0'), fog: new THREE.Color('#FF00FF') }, // 4
+            // LEVEL 6 (Score 1250+): Orange/Gold
+            { floor: new THREE.Color('#B8860B'), fog: new THREE.Color('#FF8C00') }, // 5
+        ];
+        let currentColorIndex = 0;
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBgfoQLeOOqbKBuM69SO88jhCpfwrz_koo",
+            authDomain: "qfox-29287.firebaseapp.com",
+            projectId: "qfox-29287",
+            storageBucket: "qfox-29287.firebaseapp.com",
+            messagingSenderId: "778217166086",
+            appId: "1:778217166086:web:1480312c499fdec6aafa87",
+            measurementId: "G-VGEY7GV2QD"
+        };
+
+        async function initFirebase() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                await signInAnonymously(auth);
+
+                onAuthStateChanged(auth, (currentUser) => {
+                    if (currentUser) {
+                        user = currentUser;
+                        window.qfoxUserId = user.uid.substring(0, 8);
+                        const uidEl = document.getElementById('user-id-display');
+                        if (uidEl) uidEl.textContent = window.qfoxUserId;
+                        isFirebaseReady = true;
+                        loadHighScore();
+                    } else {
+                        isFirebaseReady = false;
+                    }
+                });
+            } catch (error) {
+                console.error("Firebase init error:", error);
             }
-          }
         }
 
-        if (obsZ > foxZ + 2 && !obs.userData.scored) {
-          obs.userData.scored = true;
-          score += 10;
-          const scoreEl = document.getElementById('score-display');
-          if (scoreEl) scoreEl.textContent = `Score: ${score}`;
-        }
+        async function loadHighScore() {
+            try {
+                const localScore = localStorage.getItem(HIGH_SCORE_KEY);
+                if (localScore !== null) {
+                    window.highScoreValue = parseInt(localScore, 10) || 0;
+                    const hEl = document.getElementById('high-score-display');
+                    if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
+                }
+            } catch (e) {}
 
-        if (obsZ > 80) {
-          try { scene.remove(obs); } catch(e){}
-          obstacles.splice(i,1);
-        }
-      }
+            if (!isFirebaseReady || !user) return;
 
-      obstacleSpawnTimer++;
-      const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140));
-      if (obstacleSpawnTimer >= spawnRate) {
-        createObstacle(Math.floor(Math.random()*3));
-        obstacleSpawnTimer = 0;
-      }
-    }
-
-    /* GAME OVER */
-    function doGameOver(){
-      if (!gameActive) return;
-      gameActive = false;
-      if (bgm) bgm.pause(); // Pause music on game over
-      finalScoreEl.textContent = score;
-      if (gameOverScreen) { gameOverScreen.style.display = 'flex'; }
-      if (typeof window.handleGameOver === 'function') { window.handleGameOver(score); }
-      new TWEEN.Tween({o:0}).to({o:1}, 450).onUpdate(obj=>{ if (gameOverScreen) gameOverScreen.style.opacity = obj.o; }).start();
-    }
-
-    /* INPUT HANDLING */
-    function onKeyDown(e){
-      const leaderboardScreen = document.getElementById('leaderboard-screen');
-      if (leaderboardScreen && leaderboardScreen.style.display === 'flex') {
-        if (e.code === 'Escape' || e.code === 'KeyL') {
-          leaderboardScreen.style.display = 'none';
-          leaderboardScreen.style.opacity = 0;
-        }
-        return;
-      }
-      if (e.target && e.target.tagName === 'INPUT') return;
-      if (!gameActive) {
-        if (e.code === 'KeyR' || e.code === 'Space' || e.code === 'KeyA' || e.code === 'KeyD' || e.code.startsWith('Arrow')) startGame();
-        return;
-      }
-      if (e.code === 'KeyA' || e.code === 'ArrowLeft') moveFox(currentLane - 1);
-      if (e.code === 'KeyD' || e.code === 'ArrowRight') moveFox(currentLane + 1);
-    }
-
-    // ---------- CHANGED MOBILE INPUT: TAP LEFT/RIGHT ----------
-    function onTouchStart(e){
-      if (!e.touches || e.touches.length === 0) return;
-      const touchX = e.touches[0].clientX;
-      const screenMid = window.innerWidth * 0.5;
-
-      // If game inactive, start it on first tap
-      if (!gameActive) {
-        startGame();
-        return;
-      }
-
-      if (touchX < screenMid) {
-        moveFox(currentLane - 1); // left side tap
-      } else {
-        moveFox(currentLane + 1); // right side tap
-      }
-    }
-    // ----------------------------------------------------------
-
-    /* INIT + ANIMATE */
-    let hasInited = false;
-    function init(){
-      if (hasInited) return;
-      hasInited = true;
-
-      scene = new THREE.Scene();
-      // Initialize Fog for smooth background color transition
-      const initialFogColor = colorSchemes[0].fog;
-      scene.fog = new THREE.Fog(initialFogColor, 40, 150);
-      setupVideoBackground();
-
-      camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 3.5, 10);
-      camera.lookAt(0, 1, 0);
-
-      renderer = new THREE.WebGLRenderer({ antialias:true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(window.devicePixelRatio || 1);
-      container.appendChild(renderer.domElement);
-
-      // 🔥 FIX 1: Maximize scene brightness. Increased Ambient Light intensity (10 -> 20)
-      scene.add(new THREE.AmbientLight(0xffffff, 20));
-      // 🔥 FIX 1: Maximize scene brightness. Increased SpotLight intensity (10 -> 20)
-      const spot = new THREE.SpotLight(0xffffff, 20, 50, Math.PI/6, 0.3);
-      spot.position.set(0, 10, 10);
-      scene.add(spot);
-
-      createFox();
-      createTrack();
-
-      window.addEventListener('keydown', onKeyDown, false);
-      window.addEventListener('resize', onWindowResize, false);
-
-      // <-- TAP ONLY (replaced swipe)
-      document.addEventListener('touchstart', onTouchStart, {passive:true});
-
-      // UI Buttons
-      const restartBtn = document.getElementById('restart-btn');
-      if (restartBtn) restartBtn.addEventListener('click', () => startGame());
-      const leaderboardBtn = document.getElementById('leaderboard-btn');
-      if (leaderboardBtn) leaderboardBtn.addEventListener('click', () => window.showLeaderboard());
-      const closeLb = document.getElementById('close-leaderboard');
-      if (closeLb) closeLb.addEventListener('click', () => {
-        const lb = document.getElementById('leaderboard-screen');
-        if (lb) { lb.style.opacity = 0; setTimeout(()=> lb.style.display = 'none', 300); }
-      });
-
-      // Game is inactive until first user input
-    }
-
-    function onWindowResize(){
-      if (!camera || !renderer) return;
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function animate(){
-      requestAnimationFrame(animate);
-      const currentTime = performance.now();
-      const deltaTime = currentTime - lastTime;
-      lastTime = currentTime;
-      const deltaMultiplier = deltaTime / FRAME_TIME;
-      TWEEN.update();
-
-      if (gameActive) {
-        updateObstacles(deltaMultiplier);
-        runningTime += 0.11 * deltaMultiplier;
-        if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
-
-        // Floor movement is re-added here by scrolling the texture
-        if (floorTexture) { floorTexture.offset.y += gameSpeed * 0.02 * deltaMultiplier; }
-
-        // PHASE FLOOR AND BACKGROUND COLOR
-        updateFloorAndBackground();
-
-        // Billboard obstacles
-        if (camera) {
-          for (let obs of obstacles) {
-            if (obs.userData && obs.userData.billboard && obs.lookAt) {
-              obs.lookAt(camera.position);
+            try {
+                const scoreDocRef = doc(db, 'users', user.uid);
+                const docSnap = await getDoc(scoreDocRef);
+                if (docSnap.exists()) {
+                    const firebaseScore = docSnap.data().highScore || 0;
+                    if (firebaseScore > window.highScoreValue) {
+                        window.highScoreValue = firebaseScore;
+                        const hEl = document.getElementById('high-score-display');
+                        if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
+                        try {
+                            localStorage.setItem(HIGH_SCORE_KEY, window.highScoreValue.toString());
+                        } catch (e) {}
+                    }
+                }
+            } catch (error) {
+                console.error("Load score error:", error);
             }
-          }
         }
-      }
 
-      if (renderer && scene && camera) renderer.render(scene, camera);
-    }
+        window.handleGameOver = async function(finalScore) {
+            if (finalScore > window.highScoreValue) {
+                window.highScoreValue = finalScore;
+                const hEl = document.getElementById('high-score-display');
+                if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
+                try {
+                    localStorage.setItem(HIGH_SCORE_KEY, finalScore.toString());
+                } catch (e) {}
 
-    /* --- Color phase transition for floor and background (FOG EDITION) --- */
-    function updateFloorAndBackground() {
-      const numColors = colorSchemes.length;
-      let levelIndex = Math.floor(score / 250) % numColors;
-      const nextIndex = (levelIndex + 1) % numColors;
-      const t = (score % 250) / 250;
+                if (isFirebaseReady && user) {
+                    try {
+                        const scoreDocRef = doc(db, 'users', user.uid);
+                        await setDoc(scoreDocRef, { highScore: finalScore, timestamp: serverTimestamp() }, { merge: true });
+                    } catch (e) {
+                        console.error("Save error:", e);
+                    }
+                }
+            }
 
-      const currentFloorColor = colorSchemes[levelIndex].floor;
-      const nextFloorColor = colorSchemes[nextIndex].floor;
-      const interpolatedFloorColor = currentFloorColor.clone().lerp(nextFloorColor, t);
-      if (floorMesh && floorMesh.material) {
-        floorMesh.material.color = interpolatedFloorColor;
-        floorMesh.material.needsUpdate = true;
-      }
+            const form = document.getElementById('initials-form');
+            if (form) form.style.display = 'none';
 
-      const currentFogColor = colorSchemes[levelIndex].fog;
-      const nextFogColor = colorSchemes[nextIndex].fog;
-      const interpolatedFogColor = currentFogColor.clone().lerp(nextFogColor, t);
-      if (scene.fog) {
-        scene.fog.color = interpolatedFogColor;
-      }
-    }
+            if (isFirebaseReady && user) {
+                try {
+                    const leaderboardRef = collection(db, 'leaderboard');
+                    const lowScoreQuery = query(leaderboardRef, orderBy('score', 'desc'), limit(1000));
+                    const querySnapshot = await getDocs(lowScoreQuery);
 
-    window.addEventListener('load', () => {
-      initializeMusic();
-      init();
-      animate(); // Starts the rendering loop, but the game is inactive until user input
-    });
-  </script>
+                    let lowestTopScore = 0;
+                    if (!querySnapshot.empty) {
+                        const docs = querySnapshot.docs;
+                        lowestTopScore = docs[docs.length - 1].data().score || 0;
+                    }
+
+                    if (finalScore > lowestTopScore || querySnapshot.size < 1000) {
+                        showInitialsInput(finalScore);
+                    }
+                } catch (error) {
+                    console.error("Leaderboard check failed:", error);
+                }
+            }
+        }
+
+        function showInitialsInput(score) {
+            const form = document.getElementById('initials-form');
+            const input = document.getElementById('initials-input');
+            const btn = document.getElementById('submit-score-btn');
+
+            if (!form || !input || !btn) return;
+
+            form.style.display = 'flex';
+            input.value = '';
+            try {
+                input.focus();
+            } catch(e){}
+            btn.textContent = "SUBMIT";
+            btn.disabled = false;
+            form.dataset.score = score;
+        }
+
+        document.getElementById('submit-score-btn').addEventListener('click', async () => {
+            const form = document.getElementById('initials-form');
+            const input = document.getElementById('initials-input');
+            const btn = document.getElementById('submit-score-btn');
+            if (!form || !input || !btn) return;
+
+            let initials = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+            if (!initials) initials = "AAA";
+            const score = parseInt(form.dataset.score || '0');
+
+            btn.textContent = "SAVING...";
+            btn.disabled = true;
+
+            if (isFirebaseReady && user) {
+                try {
+                    const leaderboardRef = collection(db, 'leaderboard');
+                    await addDoc(leaderboardRef, {
+                        score: score,
+                        initials: initials,
+                        uid: user.uid,
+                        timestamp: serverTimestamp()
+                    });
+
+                    btn.textContent = "SAVED!";
+                    setTimeout(() => {
+                        if (form) form.style.display = 'none';
+                        window.showLeaderboard();
+                    }, 800);
+                } catch (e) {
+                    console.error("Submit error:", e);
+                    btn.textContent = "ERROR";
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.textContent = "RETRY";
+                    }, 2000);
+                }
+            } else {
+                // Offline fallback
+                btn.textContent = "OFFLINE";
+                setTimeout(()=>{
+                    if (form) form.style.display = 'none';
+                    window.showLeaderboard();
+                }, 700);
+            }
+        });
+
+        document.getElementById('initials-input').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+        });
+
+        window.showLeaderboard = async function() {
+            const screen = document.getElementById('leaderboard-screen');
+            const list = document.getElementById('leaderboard-list');
+
+            if (!screen || !list) return;
+
+            screen.style.display = 'flex';
+            requestAnimationFrame(()=> screen.style.opacity = 1);
+
+            list.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
+
+            if (!isFirebaseReady) {
+                list.innerHTML = 'Firebase not ready.';
+                return;
+            }
+
+            try {
+                const leaderboardRef = collection(db, 'leaderboard');
+                const q = query(leaderboardRef, orderBy('score', 'desc'), limit(100));
+                const snapshot = await getDocs(q);
+
+                if (snapshot.empty) {
+                    list.innerHTML = 'Be the first to post a score!';
+                    return;
+                }
+
+                let html = '';
+                snapshot.docs.forEach((docSnap, index) => {
+                    const data = docSnap.data();
+                    const rank = index + 1;
+                    const initials = data.initials || '???';
+                    const scoreVal = data.score || 0;
+                    const isMe = (user && data.uid === user.uid) ? 'color:#fcd34d; font-weight:bold;' : '';
+
+                    html += `<div class="leaderboard-entry" style="${isMe}">
+                        <span class="rank">${rank}</span>
+                        <span class="initials">${initials}</span>
+                        <span class="score">${scoreVal.toLocaleString()}</span>
+                    </div>`;
+                });
+
+                list.innerHTML = html;
+            } catch (error) {
+                console.error("Leaderboard error:", error);
+                list.innerHTML = `Error: ${error.message}`;
+            }
+        }
+
+        initFirebase();
+
+
+        const FOX_HEAD_URL = 'head.png';
+        const OBSTACLE_URL = 'orb.png';
+        const FLOOR_IMAGE_URL= 'floor.png';
+        const BACKGROUND_VIDEO_URL = 'background.mp4';
+        const MUSIC_URL = 'music.wav';
+
+        let bgm = null;
+
+        function initializeMusic() {
+            bgm = new Audio(MUSIC_URL);
+            bgm.loop = true;
+            bgm.volume = 0.7;
+        }
+
+        /* GLOBALS */
+        let scene, camera, renderer;
+        let foxPlayer = null;
+        let floorTexture = null;
+        let floorMesh = null;
+        let score = 0;
+        let gameActive = false;
+        let lanePositions = [-3.5, 0, 3.5];
+        let currentLane = 1;
+        let obstacles = [];
+        let obstacleSpawnTimer = 0;
+        let gameSpeed = 0.25;
+        const BASE_GAME_SPEED = 0.25;
+        const SPEED_INCREASE_RATE = 0.0006;
+        let runningTime = 0;
+        const FOX_BASE_HEIGHT = 1.2;
+        let touchStartX = 0, touchStartY = 0;
+        const SWIPE_THRESHOLD = 50;
+        let lastTime = performance.now();
+        const TARGET_FPS = 60;
+        const FRAME_TIME = 1000 / TARGET_FPS;
+
+        const container = document.getElementById('game-container');
+        const scoreDisplay = document.getElementById('score-display');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreEl = document.getElementById('final-score');
+        const textureLoader = new THREE.TextureLoader();
+
+        function setupVideoBackground(){
+            if (!scene) return;
+            try {
+                const vid = document.createElement('video');
+                vid.src = BACKGROUND_VIDEO_URL;
+                vid.loop = true;
+                vid.muted = true;
+                vid.playsInline = true;
+                vid.play().catch(()=>{});
+
+                const vtex = new THREE.VideoTexture(vid);
+                vtex.minFilter = THREE.LinearFilter;
+                vtex.magFilter = THREE.LinearFilter;
+                scene.background = vtex;
+            } catch (e) {
+                console.warn('Video background failed:', e);
+            }
+        }
+
+        /* CREATE FOX */
+        function createFox(){
+            const geo = new THREE.PlaneGeometry(1.8, 1.8);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent:true });
+            foxPlayer = new THREE.Mesh(geo, mat);
+
+            textureLoader.load(FOX_HEAD_URL, (tex)=>{
+                tex.encoding = THREE.sRGBEncoding;
+                foxPlayer.material = new THREE.MeshBasicMaterial({
+                    map: tex,
+                    transparent: true,
+                    side: THREE.FrontSide
+                });
+                foxPlayer.material.needsUpdate = true;
+            });
+
+            foxPlayer.position.set(lanePositions[currentLane], FOX_BASE_HEIGHT, 5);
+            scene.add(foxPlayer);
+        }
+
+        /* CREATE TRACK */
+        function createTrack(){
+            const trackWidth = 18;
+            const trackLength = 600;
+            const floorGeo = new THREE.PlaneGeometry(trackWidth, trackLength, 1, 1);
+
+            const tex = textureLoader.load(FLOOR_IMAGE_URL, t => {
+                t.wrapS = THREE.RepeatWrapping;
+                t.wrapT = THREE.RepeatWrapping;
+                t.repeat.set(4, 60);
+                t.encoding = THREE.sRGBEncoding;
+            });
+
+            const floorMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+            floorMesh = new THREE.Mesh(floorGeo, floorMat);
+            floorMesh.rotation.x = -Math.PI/2;
+            floorMesh.position.set(0, 0, 0);
+            scene.add(floorMesh);
+            floorTexture = tex;
+        }
+
+        function createObstacle(laneIndex) {
+            if (!scene) return;
+
+            const laneX = lanePositions[laneIndex];
+            const startZ = -120;
+            const size = 1.8;
+            const geo = new THREE.PlaneGeometry(size, size);
+
+            // Orb material with MAX emissive intensity for bright golden halo
+            const mat = new THREE.MeshBasicMaterial({
+                color:0xffffff,
+                transparent:true,
+                side: THREE.DoubleSide,
+                emissive: 0xffcc00, // Golden glow color
+                emissiveIntensity: 16.0 // 🔥 FIX 2: Increased from 8.0 to 16.0 for maximum glow
+            });
+
+            const orb = new THREE.Mesh(geo, mat);
+            orb.position.set(laneX, 1.35, startZ);
+            orb.userData.lane = laneIndex;
+            orb.userData.billboard = true;
+
+            textureLoader.load(OBSTACLE_URL, tex => {
+                tex.encoding = THREE.sRGBEncoding;
+                tex.minFilter = THREE.LinearMipMapLinearFilter;
+                tex.magFilter = THREE.LinearFilter;
+                orb.material.map = tex;
+                orb.material.needsUpdate = true;
+            });
+            orb.renderOrder = 1;
+            obstacles.push(orb);
+            scene.add(orb);
+        }
+
+        /* GAME CONTROL */
+        function startGame(){
+            if (!scene || !renderer || !camera) {
+                init();
+            }
+
+            // Attempt to play music on a user gesture (which leads to startGame)
+            if (bgm && bgm.paused) {
+                bgm.play().catch(error => {
+                    console.warn("Audio playback failed (usually a mobile browser restriction):", error.message);
+                });
+            }
+
+            gameActive = true;
+            score = 0;
+            gameSpeed = BASE_GAME_SPEED;
+            currentLane = 1;
+
+            if (foxPlayer) foxPlayer.position.x = lanePositions[currentLane];
+
+            obstacles.forEach(o=>{
+                try {
+                    scene.remove(o);
+                } catch(e){}
+            });
+            obstacles = [];
+            obstacleSpawnTimer = 0;
+
+            const scoreEl = document.getElementById('score-display');
+            if (scoreEl) scoreEl.textContent = `Score: ${score}`;
+
+            if (gameOverScreen) {
+                gameOverScreen.style.display = 'none';
+                gameOverScreen.style.opacity = 0;
+            }
+
+            const lb = document.getElementById('leaderboard-screen');
+            if (lb) lb.style.display = 'none';
+
+            const initialsForm = document.getElementById('initials-form');
+            if (initialsForm) initialsForm.style.display = 'none';
+        }
+
+        /* MOVE FOX */
+        function moveFox(newLane){
+            if (!gameActive) {
+                startGame(); // Start game on first input if not active
+                return;
+            }
+            if (!foxPlayer) return;
+            if (newLane < 0 || newLane > 2) return;
+            if (newLane === currentLane) return;
+
+            currentLane = newLane;
+            const targetX = lanePositions[currentLane];
+
+            TWEEN.removeAll();
+            new TWEEN.Tween(foxPlayer.position)
+                .to({ x: targetX }, 150)
+                .easing(TWEEN.Easing.Quadratic.Out)
+                .start();
+        }
+
+        /* UPDATE OBSTACLES */
+        function updateObstacles(deltaMultiplier){
+            if (!foxPlayer) return;
+
+            gameSpeed += SPEED_INCREASE_RATE * deltaMultiplier;
+
+            for (let i = obstacles.length - 1; i >= 0; i--){
+                const obs = obstacles[i];
+                obs.position.z += gameSpeed * deltaMultiplier;
+
+                // Collision detection
+                const foxZ = foxPlayer.position.z;
+                const obsZ = obs.position.z;
+                const collisionRange = 0.9;
+
+                if (obsZ >= foxZ - collisionRange && obsZ <= foxZ + collisionRange) {
+                    if (obs.userData.lane === currentLane) {
+                        const foxX = foxPlayer.position.x;
+                        const obsX = obs.position.x;
+                        const lateralRange = 0.9;
+                        if (Math.abs(foxX - obsX) < lateralRange) {
+                            doGameOver();
+                            return;
+                        }
+                    }
+                }
+
+                if (obsZ > foxZ + 2 && !obs.userData.scored) {
+                    obs.userData.scored = true;
+                    score += 10;
+                    const scoreEl = document.getElementById('score-display');
+                    if (scoreEl) scoreEl.textContent = `Score: ${score}`;
+                }
+
+                if (obsZ > 80) {
+                    try {
+                        scene.remove(obs);
+                    } catch(e){}
+                    obstacles.splice(i,1);
+                }
+            }
+
+            obstacleSpawnTimer++;
+            const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140));
+
+            if (obstacleSpawnTimer >= spawnRate) {
+                createObstacle(Math.floor(Math.random()*3));
+                obstacleSpawnTimer = 0;
+            }
+        }
+
+        /* GAME OVER */
+        function doGameOver(){
+            if (!gameActive) return;
+
+            gameActive = false;
+            if (bgm) bgm.pause(); // Pause music on game over
+
+            finalScoreEl.textContent = score;
+            if (gameOverScreen) {
+                gameOverScreen.style.display = 'flex';
+            }
+
+            if (typeof window.handleGameOver === 'function') {
+                window.handleGameOver(score);
+            }
+
+            new TWEEN.Tween({o:0}).to({o:1}, 450).onUpdate(obj=>{
+                if (gameOverScreen) gameOverScreen.style.opacity = obj.o;
+            }).start();
+        }
+
+        /* INPUT HANDLING */
+        function onKeyDown(e){
+            const leaderboardScreen = document.getElementById('leaderboard-screen');
+            if (leaderboardScreen && leaderboardScreen.style.display === 'flex') {
+                if (e.code === 'Escape' || e.code === 'KeyL') {
+                    leaderboardScreen.style.display = 'none';
+                    leaderboardScreen.style.opacity = 0;
+                }
+                return;
+            }
+
+            if (e.target && e.target.tagName === 'INPUT') return;
+
+            if (!gameActive) {
+                if (e.code === 'KeyR' || e.code === 'Space' || e.code === 'KeyA' || e.code === 'KeyD' || e.code.startsWith('Arrow')) startGame();
+                return;
+            }
+
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') moveFox(currentLane - 1);
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') moveFox(currentLane + 1);
+        }
+
+        function onTouchStart(e){
+            if (!e.touches || e.touches.length === 0) return;
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }
+
+        function onTouchEnd(e){
+            if (!e.changedTouches || e.changedTouches.length === 0) return;
+
+            const dx = e.changedTouches[0].clientX - touchStartX;
+            const dy = e.changedTouches[0].clientY - touchStartY;
+
+            if (!gameActive && (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) < SWIPE_THRESHOLD)) {
+                // Start game on any swipe or simple tap
+                startGame();
+                return;
+            }
+
+            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
+                if (dx > 0) moveFox(currentLane + 1);
+                else moveFox(currentLane - 1);
+            }
+        }
+
+        /* INIT + ANIMATE */
+        let hasInited = false;
+        function init(){
+            if (hasInited) return;
+            hasInited = true;
+
+            scene = new THREE.Scene();
+
+            // Initialize Fog for smooth background color transition
+            const initialFogColor = colorSchemes[0].fog;
+            scene.fog = new THREE.Fog(initialFogColor, 40, 150);
+
+            setupVideoBackground();
+
+            camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 3.5, 10);
+            camera.lookAt(0, 1, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias:true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio || 1);
+            container.appendChild(renderer.domElement);
+
+            // 🔥 FIX 1: Maximize scene brightness. Increased Ambient Light intensity (10 -> 20)
+            scene.add(new THREE.AmbientLight(0xffffff, 20));
+            // 🔥 FIX 1: Maximize scene brightness. Increased SpotLight intensity (10 -> 20)
+            const spot = new THREE.SpotLight(0xffffff, 20, 50, Math.PI/6, 0.3);
+            spot.position.set(0, 10, 10);
+            scene.add(spot);
+
+            createFox();
+            createTrack();
+
+            window.addEventListener('keydown', onKeyDown, false);
+            window.addEventListener('resize', onWindowResize, false);
+            document.addEventListener('touchstart', onTouchStart, {passive:true});
+            document.addEventListener('touchend', onTouchEnd, {passive:true});
+
+            // UI Buttons
+            const restartBtn = document.getElementById('restart-btn');
+            if (restartBtn) restartBtn.addEventListener('click', () => startGame());
+            const leaderboardBtn = document.getElementById('leaderboard-btn');
+            if (leaderboardBtn) leaderboardBtn.addEventListener('click', () => window.showLeaderboard());
+            const closeLb = document.getElementById('close-leaderboard');
+            if (closeLb) closeLb.addEventListener('click', () => {
+                const lb = document.getElementById('leaderboard-screen');
+                if (lb) {
+                    lb.style.opacity = 0;
+                    setTimeout(()=> lb.style.display = 'none', 300);
+                }
+            });
+            // Game is inactive until first user input
+        }
+
+        function onWindowResize(){
+            if (!camera || !renderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate(){
+            requestAnimationFrame(animate);
+
+            const currentTime = performance.now();
+            const deltaTime = currentTime - lastTime;
+            lastTime = currentTime;
+            const deltaMultiplier = deltaTime / FRAME_TIME;
+
+            TWEEN.update();
+
+            if (gameActive) {
+                updateObstacles(deltaMultiplier);
+                runningTime += 0.11 * deltaMultiplier;
+
+                if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1; // Bobbing animation
+
+                // Floor movement is re-added here by scrolling the texture
+                if (floorTexture) {
+                    floorTexture.offset.y += gameSpeed * 0.02 * deltaMultiplier;
+                }
+
+                // PHASE FLOOR AND BACKGROUND COLOR
+                updateFloorAndBackground();
+
+                // Billboard obstacles
+                if (camera) {
+                    for (let obs of obstacles) {
+                        if (obs.userData && obs.userData.billboard && obs.lookAt) {
+                            obs.lookAt(camera.position);
+                        }
+                    }
+                }
+            }
+
+            if (renderer && scene && camera) renderer.render(scene, camera);
+        }
+
+        /* --- Color phase transition for floor and background (FOG EDITION) --- */
+        function updateFloorAndBackground() {
+            const numColors = colorSchemes.length;
+
+            // Calculate the current color index, making it loop using modulo (%)
+            let levelIndex = Math.floor(score / 250) % numColors;
+
+            // Calculate the next color index, ensuring it wraps back to 0 at the end
+            const nextIndex = (levelIndex + 1) % numColors;
+
+            // 't' is the progress (0.0 to 1.0) through the current level's transition
+            const t = (score % 250) / 250;
+
+            // --- FLOOR COLOR TRANSITION ---
+            const currentFloorColor = colorSchemes[levelIndex].floor;
+            const nextFloorColor = colorSchemes[nextIndex].floor;
+            const interpolatedFloorColor = currentFloorColor.clone().lerp(nextFloorColor, t);
+
+            if (floorMesh && floorMesh.material) {
+                floorMesh.material.color = interpolatedFloorColor;
+                floorMesh.material.needsUpdate = true;
+            }
+
+            // FOG (SCENE TINT) COLOR TRANSITION
+            const currentFogColor = colorSchemes[levelIndex].fog;
+            const nextFogColor = colorSchemes[nextIndex].fog;
+
+            // Lerp is the smooth transition function
+            const interpolatedFogColor = currentFogColor.clone().lerp(nextFogColor, t);
+
+            if (scene.fog) {
+                // Apply the smoothly interpolated color to the FOG
+                scene.fog.color = interpolatedFogColor;
+            }
+        }
+
+        window.addEventListener('load', () => {
+            initializeMusic();
+            init();
+            animate(); // Starts the rendering loop, but the game is inactive until user input
+        });
+    </script>
 </body>
 </html>
