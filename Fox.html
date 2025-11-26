@@ -368,16 +368,11 @@ const MUSIC_URL      = 'music.wav';
 
 let bgm = null;
 function initializeMusic() {
+  // ⭐️ FIX 3: Music object created, but not auto-played or listener-attached here. 
+  // Playback will be attempted in startGame() on user input.
   bgm = new Audio(MUSIC_URL);
   bgm.loop = true;
   bgm.volume = 0.7;
-  function unlock() {
-    bgm.play().catch(()=>{});
-    document.removeEventListener('keydown', unlock);
-    document.removeEventListener('touchstart', unlock);
-  }
-  document.addEventListener('keydown', unlock, { passive: true });
-  document.addEventListener('touchstart', unlock, { passive: true });
 }
 
 /* GLOBALS */
@@ -473,13 +468,13 @@ function createObstacle(laneIndex) {
   const size = 1.8;
   const geo = new THREE.PlaneGeometry(size, size);
   
-  // Added emissive color to make the obstacle glow (golden halo)
+  // ⭐️ FIX 1: Increased emissive intensity for brighter glow/halo ⭐️
   const mat = new THREE.MeshBasicMaterial({ 
     color:0xffffff, 
     transparent:true, 
     side: THREE.DoubleSide,
     emissive: 0xffcc00, // Golden glow color
-    emissiveIntensity: 0.5 // Adjust intensity as needed
+    emissiveIntensity: 1.5 // Increased from 0.5 to 1.5
   });
 
   const orb = new THREE.Mesh(geo, mat);
@@ -503,6 +498,16 @@ function startGame(){
   if (!scene || !renderer || !camera) {
     init();
   }
+  
+  // ⭐️ FIX 3: Attempt to play music on game start (which follows user input) ⭐️
+  if (bgm) {
+    bgm.play().catch(error => {
+      // Catch error if play failed (e.g., still no user gesture)
+      // On some mobile devices, this might still be blocked, but it is the best practice fix.
+      console.warn("Audio playback failed (usually a mobile browser restriction):", error.message);
+    });
+  }
+
   gameActive = true;
   score = 0;
   gameSpeed = BASE_GAME_SPEED;
@@ -525,7 +530,10 @@ function startGame(){
 
 /* MOVE FOX */
 function moveFox(newLane){
-  if (!gameActive) return;
+  if (!gameActive) {
+    startGame(); // Start game on first input if not active
+    return; 
+  }
   if (!foxPlayer) return;
   if (newLane < 0 || newLane > 2) return;
   if (newLane === currentLane) return;
@@ -583,6 +591,7 @@ function updateObstacles(deltaMultiplier){
 function doGameOver(){
   if (!gameActive) return;
   gameActive = false;
+  if (bgm) bgm.pause(); // Pause music on game over
   finalScoreEl.textContent = score;
   if (gameOverScreen) {
     gameOverScreen.style.display = 'flex';
@@ -627,6 +636,9 @@ function onTouchEnd(e){
     if (!gameActive) { startGame(); return; }
     if (dx > 0) moveFox(currentLane + 1);
     else moveFox(currentLane - 1);
+  } else if (!gameActive && Math.abs(dy) < 50) {
+    // Treat simple tap as start game
+    startGame();
   }
 }
 
@@ -650,10 +662,11 @@ function init(){
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
   
-  // Increased Ambient Light intensity for a brighter scene
-  scene.add(new THREE.AmbientLight(0xffffff, 3)); 
+  // ⭐️ FIX 2: Increased Ambient Light intensity (3 -> 5) for a brighter scene ⭐️
+  scene.add(new THREE.AmbientLight(0xffffff, 5)); 
   
-  const spot = new THREE.SpotLight(0xffffff, 3, 50, Math.PI/6, 0.3);
+  // ⭐️ FIX 2: Increased SpotLight intensity (3 -> 5) ⭐️
+  const spot = new THREE.SpotLight(0xffffff, 5, 50, Math.PI/6, 0.3);
   spot.position.set(0, 10, 10);
   scene.add(spot);
   createFox();
@@ -695,7 +708,7 @@ function animate(){
     runningTime += 0.11 * deltaMultiplier;
     if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
 
-    // ⭐️ FIX: Floor movement is re-added here by scrolling the texture ⭐️
+    // Floor movement is re-added here by scrolling the texture
     if (floorTexture) {
       floorTexture.offset.y += gameSpeed * 0.02 * deltaMultiplier;
     }
