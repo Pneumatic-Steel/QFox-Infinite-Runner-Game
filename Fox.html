@@ -148,22 +148,11 @@ window.qfoxUserId = 'Anonymous';
 
 /* Define color schemes for floor & background phase transition (VIBRANT FOG EDITION) */
 const colorSchemes = [
-  // LEVEL 1 (Score 0-249): Dark Blue/Black (Initial Look)
   { floor: new THREE.Color('#1f2937'), fog: new THREE.Color('#111827') }, // 0
-  
-  // LEVEL 2 (Score 250-499): Vibrant Red
   { floor: new THREE.Color('#A01010'), fog: new THREE.Color('#FF0000') }, // 1
-  
-  // LEVEL 3 (Score 500-749): Bright Green
   { floor: new THREE.Color('#008000'), fog: new THREE.Color('#00FF00') }, // 2
-  
-  // LEVEL 4 (Score 750-999): Electric Blue
   { floor: new THREE.Color('#1010A0'), fog: new THREE.Color('#00FFFF') }, // 3
-  
-  // LEVEL 5 (Score 1000-1249): Hot Pink/Magenta
   { floor: new THREE.Color('#A010A0'), fog: new THREE.Color('#FF00FF') }, // 4
-  
-  // LEVEL 6 (Score 1250+): Orange/Gold
   { floor: new THREE.Color('#B8860B'), fog: new THREE.Color('#FF8C00') }, // 5
 ];
 
@@ -433,6 +422,12 @@ let lastTime = performance.now();
 const TARGET_FPS = 60;
 const FRAME_TIME = 1000 / TARGET_FPS;
 
+// Limits & caps
+const MAX_OBSTACLES = 80; // cap total obstacle objects (safe)
+const OBSTACLE_REMOVAL_Z = 85; // z threshold to remove obstacles
+const SPAWN_MIN_RATE = 18;
+const SPAWN_MAX_RATE = 120; // slower spawns when low speed
+
 // Mobile detection
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 const mobileControls = document.getElementById('mobile-controls');
@@ -444,6 +439,7 @@ const finalScoreEl = document.getElementById('final-score');
 
 const textureLoader = new THREE.TextureLoader();
 
+/* VIDEO BACKGROUND */
 function setupVideoBackground(){
   if (!scene) return;
   try {
@@ -453,6 +449,7 @@ function setupVideoBackground(){
     vid.muted = true;
     vid.playsInline = true;
     vid.setAttribute('playsinline', '');
+    vid.crossOrigin = "anonymous";
     
     const playVideo = () => {
       vid.play().catch(()=>{});
@@ -464,6 +461,7 @@ function setupVideoBackground(){
     const vtex = new THREE.VideoTexture(vid);
     vtex.minFilter = THREE.LinearFilter;
     vtex.magFilter = THREE.LinearFilter;
+    vtex.format = THREE.RGBAFormat;
     scene.background = vtex;
   } catch (e) {
     console.warn('Video background failed:', e);
@@ -472,54 +470,45 @@ function setupVideoBackground(){
   }
 }
 
-/* MOBILE CONTROLS - REPLACED WITH TAP-HALF HANDLER */
+/* MOBILE CONTROLS - TAP LEFT / RIGHT */
 function setupMobileControls() {
-  // We still detect mobile but we remove visible controls and use left/right halves for taps
   if (!isMobile) return;
 
-  // Ensure the existing mobile-controls element is hidden so no UI is visible
-  if (mobileControls) mobileControls.style.display = 'none';
+  if (mobileControls) mobileControls.style.display = 'none'; // hide visible UI
 
-  // Touch handler: left half = left, right half = right
   const touchHandler = (e) => {
-    // Protect UI interactions: ignore touches that start on inputs, buttons, or overlays
+    if (!e) return;
     const target = e.target;
     if (!target) return;
 
-    // if tapping inside overlay UIs, ignore (let the UI handle it)
+    /* ignore touches on UI overlays and inputs */
     if (target.tagName === 'INPUT'
-        || target.closest('#game-over-screen')
-        || target.closest('#leaderboard-screen')
-        || target.closest('#initials-form')
-        || target.closest('.restart-button')
-        || target.closest('.close-button')
-        || target.closest('.mobile-btn')
+      || target.closest('#game-over-screen')
+      || target.closest('#leaderboard-screen')
+      || target.closest('#initials-form')
+      || target.closest('.restart-button')
+      || target.closest('.close-button')
+      || target.closest('.mobile-btn')
     ) {
       return;
     }
 
-    // Use changedTouches for touchstart
     const touch = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]);
     if (!touch) return;
 
     const touchX = touch.clientX;
     const screenMid = window.innerWidth / 2;
 
-    // Start the game on first valid touch
+    // Start game on first valid touch
     if (!gameActive) {
       startGame();
       return;
     }
 
-    // Move left if left half, otherwise move right
-    if (touchX < screenMid) {
-      moveFox(currentLane - 1);
-    } else {
-      moveFox(currentLane + 1);
-    }
+    if (touchX < screenMid) moveFox(currentLane - 1);
+    else moveFox(currentLane + 1);
   };
 
-  // Add listener (passive is true so it won't block scroll, and we aren't calling preventDefault)
   window.addEventListener('touchstart', touchHandler, { passive: true });
 }
 
@@ -556,120 +545,116 @@ function createTrack(){
   floorTexture = tex;
 }
 
+/* CREATE OBSTACLE - using 3D sphere + camera-facing halo ring */
 function createObstacle(laneIndex) {
   if (!scene) return;
+
+  // Cap spawn if too many obstacles already
+  if (obstacles.length >= MAX_OBSTACLES) return;
+
   const laneX = lanePositions[laneIndex];
   const startZ = -120;
-  const size = 1.8;
-  
-  // Create the orb geometry
-  const orbGeo = new THREE.PlaneGeometry(size, size);
-  
-  // --- FIX: UPDATED MATERIAL FOR ORB TO FIX WONKINESS ---
-  const orbMat = new THREE.MeshBasicMaterial({ 
-    color: 0xffffff, 
-    transparent: true, 
-    side: THREE.FrontSide, // Front side usually sufficient for billboards
-    depthWrite: false,     // CRITICAL: Prevents transparent rect from occluding things behind it
-    alphaTest: 0.05        // Removes slight fringing around texture
+  const size = 0.9; // diameter for sphere
+
+  // Use SphereGeometry to avoid perspective ovalting problems
+  const orbGeo = new THREE.SphereGeometry(size * 0.5, 24, 24); // radius, segments
+  const orbMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    transparent: true,
+    roughness: 0.2,
+    metalness: 0.0,
+    // We'll apply a texture if available
   });
-  
+
   const orb = new THREE.Mesh(orbGeo, orbMat);
-  
-  // Create the halo (slightly larger than the orb)
-  const haloSize = size * 1.4; 
-  const haloGeo = new THREE.PlaneGeometry(haloSize, haloSize);
-  
-  // --- FIX: UPDATED MATERIAL FOR HALO TO FIX WONKINESS ---
-  const haloMat = new THREE.MeshBasicMaterial({ 
-    color: 0xffcc00, 
-    transparent: true, 
-    opacity: 0.7,
-    side: THREE.FrontSide,
-    blending: THREE.AdditiveBlending, // Makes it glow nicely
-    depthWrite: false,                // CRITICAL: Prevents halo from occluding floor/bg
-    alphaTest: 0.01
-  });
-  
-  const halo = new THREE.Mesh(haloGeo, haloMat);
-  
-  // Position both at the same location
   orb.position.set(laneX, 1.35, startZ);
-  halo.position.set(laneX, 1.34, startZ);
-  
-  // Set user data
+  orb.userData = orb.userData || {};
   orb.userData.lane = laneIndex;
-  orb.userData.billboard = true;
-  halo.userData.billboard = true;
-  halo.userData.isHalo = true;
-  
-  // Load textures
+  orb.userData.scored = false;
+
+  // Create halo as a ring (flat) that always faces camera and has additive blending
+  const haloOuter = size * 1.4;
+  const haloInner = size * 0.7;
+  const haloGeo = new THREE.RingGeometry(haloInner, haloOuter, 32);
+  const haloMat = new THREE.MeshBasicMaterial({
+    color: 0xffcc00,
+    transparent: true,
+    opacity: 0.8,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false, // prevent writing to depth buffer
+    depthTest: false   // ensure it draws on top
+  });
+
+  const halo = new THREE.Mesh(haloGeo, haloMat);
+  halo.position.set(0, 0, 0.02); // tiny forward offset relative to orb local space
+  halo.rotation.x = -Math.PI / 2;
+  halo.renderOrder = 999;
+
+  // Put halo as child of orb — we'll rotate it toward camera each frame
+  orb.add(halo);
+
+  // userData for pulsing animation
+  orb.userData.halo = halo;
+  orb.userData.haloPulse = {
+    speed: 0.008 + Math.random() * 0.008,
+    phase: Math.random() * Math.PI * 2,
+    minScale: 0.5,
+    maxScale: 1.15
+  };
+
+  // Load orb texture if provided (keeps alpha)
   textureLoader.load(OBSTACLE_URL, tex => {
-    tex.encoding = THREE.sRGBEncoding;
-    tex.minFilter = THREE.LinearMipMapLinearFilter;
-    tex.magFilter = THREE.LinearFilter;
-    orb.material.map = tex;
-    orb.material.needsUpdate = true;
+    try {
+      tex.encoding = THREE.sRGBEncoding;
+      tex.minFilter = THREE.LinearMipMapLinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      orb.material.map = tex;
+      orb.material.needsUpdate = true;
+    } catch(e) { console.warn('orb texture load failed', e); }
   });
-  
+
+  // Optionally load halo texture and apply as sprite on halo (kept simple here)
   textureLoader.load(HALO_URL, tex => {
-    tex.encoding = THREE.sRGBEncoding;
-    tex.minFilter = THREE.LinearMipMapLinearFilter;
-    tex.magFilter = THREE.LinearFilter;
-    halo.material.map = tex;
-    halo.material.needsUpdate = true;
+    try {
+      tex.encoding = THREE.sRGBEncoding;
+      tex.minFilter = THREE.LinearMipMapLinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      // Instead of replacing ring, we can store it for later use
+      halo.userData.texture = tex;
+      // Create an emissive overlay using a sprite so it always faces camera (optional)
+      // We keep ring geometry and optionally use texture on a small plane if needed.
+    } catch(e) { console.warn('halo texture load failed', e); }
   });
-  
-  // Set render order
-  orb.renderOrder = 2;
-  halo.renderOrder = 1;
-  
-  // Store both in obstacles array
+
+  orb.renderOrder = 500;
+
+  // Store as object for update & cleanup
   const obstacleGroup = {
     orb: orb,
     halo: halo,
     lane: laneIndex
   };
-  
+
   obstacles.push(obstacleGroup);
   scene.add(orb);
-  scene.add(halo);
-  
-  // Add pulsing animation to the halo
-  animateHalo(halo);
 }
 
-// Function to animate the halo with a pulsing effect
-function animateHalo(halo) {
-  const pulseSpeed = 0.01;
-  const minScale = 0.4;
-  const maxScale = 1.1;
-  let scaleDirection = 1;
-  
-  // Store the animation function in the halo's userData
-  halo.userData.animate = function(deltaMultiplier) {
-    // Calculate scale factor based on delta time
-    const scaleFactor = pulseSpeed * deltaMultiplier;
-    
-    // Update scale
-    halo.scale.x += scaleFactor * scaleDirection;
-    halo.scale.y += scaleFactor * scaleDirection;
-    
-    // Reverse direction if at limits
-    if (halo.scale.x >= maxScale || halo.scale.x <= minScale) {
-      scaleDirection *= -1;
-    }
-    
-    // Clamp scale values
-    halo.scale.x = Math.max(minScale, Math.min(maxScale, halo.scale.x));
-    halo.scale.y = Math.max(minScale, Math.min(maxScale, halo.scale.y));
-    
-    // Also pulse the opacity for extra glow effect
-    const opacityRange = 0.4;
-    const baseOpacity = 0.7;
-    const opacity = baseOpacity + Math.sin(performance.now() * 0.005) * opacityRange;
-    halo.material.opacity = Math.max(0.4, Math.min(0.9, opacity));
-  };
+/* Animate halo pulsing (called per-frame for each obstacle) */
+function animateHaloPerFrame(orb, deltaMultiplier) {
+  const halo = orb.userData.halo;
+  if (!halo || !orb.userData.haloPulse) return;
+
+  const pulse = orb.userData.haloPulse;
+  pulse.phase += pulse.speed * deltaMultiplier;
+  const t = (Math.sin(pulse.phase) + 1) / 2; // 0..1
+  const s = pulse.minScale + (pulse.maxScale - pulse.minScale) * t;
+  halo.scale.setScalar(s);
+
+  // pulse opacity
+  const base = 0.6;
+  const opacityRange = 0.25;
+  halo.material.opacity = Math.max(0.2, Math.min(0.95, base + Math.sin(pulse.phase * 1.2) * opacityRange));
 }
 
 /* GAME CONTROL */
@@ -677,26 +662,12 @@ function startGame(){
   if (!scene || !renderer || !camera) {
     init();
   }
-  
-  // Clean up old obstacles properly
-  obstacles.forEach(obstacleGroup => {
-    if (obstacleGroup.orb) {
-      if (obstacleGroup.orb.geometry) obstacleGroup.orb.geometry.dispose();
-      if (obstacleGroup.orb.material) {
-        if (obstacleGroup.orb.material.map) obstacleGroup.orb.material.map.dispose();
-        obstacleGroup.orb.material.dispose();
-      }
-      scene.remove(obstacleGroup.orb);
-    }
-    if (obstacleGroup.halo) {
-      if (obstacleGroup.halo.geometry) obstacleGroup.halo.geometry.dispose();
-      if (obstacleGroup.halo.material) {
-        if (obstacleGroup.halo.material.map) obstacleGroup.halo.material.map.dispose();
-        obstacleGroup.halo.material.dispose();
-      }
-      scene.remove(obstacleGroup.halo);
-    }
-  });
+
+  // Thorough cleanup of old obstacles
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const g = obstacles[i];
+    safeDisposeObstacle(g);
+  }
   obstacles = [];
 
   gameActive = true;
@@ -724,6 +695,45 @@ function startGame(){
   if (initialsForm) initialsForm.style.display = 'none';
 }
 
+/* Safe disposal helper for obstacle groups */
+function safeDisposeObstacle(group) {
+  try {
+    if (!group) return;
+    const orb = group.orb;
+    const halo = group.halo;
+
+    if (orb) {
+      // dispose children textures/materials
+      orb.traverse((node) => {
+        if (node.isMesh) {
+          if (node.geometry) { node.geometry.dispose(); }
+          if (node.material) {
+            // If material is an array, dispose each
+            if (Array.isArray(node.material)) {
+              node.material.forEach(m => {
+                if (m.map) { try { m.map.dispose(); } catch(e){} }
+                try { m.dispose(); } catch(e){}
+              });
+            } else {
+              if (node.material.map) { try { node.material.map.dispose(); } catch(e){} }
+              try { node.material.dispose(); } catch(e){}
+            }
+          }
+        }
+      });
+      // Remove from scene
+      try { scene.remove(orb); } catch(e){}
+    }
+
+    // halo is child of orb and disposed above; ensure remove from parent
+    if (halo && halo.parent) {
+      try { halo.parent.remove(halo); } catch(e){}
+    }
+  } catch (e) {
+    console.warn('safeDisposeObstacle error', e);
+  }
+}
+
 /* MOVE FOX */
 function moveFox(newLane){
   if (!gameActive) {
@@ -747,29 +757,36 @@ function updateObstacles(deltaMultiplier){
   if (!foxPlayer) return;
   gameSpeed += SPEED_INCREASE_RATE * deltaMultiplier;
   
+  // Update obstacles from end to start so removals are safe
   for (let i = obstacles.length - 1; i >= 0; i--){
     const obstacleGroup = obstacles[i];
     const orb = obstacleGroup.orb;
     const halo = obstacleGroup.halo;
     
-    // Move both orb and halo
+    // Move both orb and halo (halo is child so it moves with orb)
     orb.position.z += gameSpeed * deltaMultiplier;
-    halo.position.z += gameSpeed * deltaMultiplier;
     
-    // Animate the halo
-    if (halo.userData.animate) {
-      halo.userData.animate(deltaMultiplier);
+    // Animate halo
+    animateHaloPerFrame(orb, deltaMultiplier);
+
+    // Billboard halo to camera: ensure it's readable
+    if (halo) {
+      // Halo is ring horizontal; make it face camera by copying camera rotation to its parent
+      // If it were a plane, we'd copy quaternion. For ring, keep flat and rotate to face camera:
+      halo.quaternion.copy(camera.quaternion);
     }
     
-    // Collision detection (only check the orb)
+    // Collision detection (narrowed window for performance)
     const foxZ = foxPlayer.position.z;
     const obsZ = orb.position.z;
-    const collisionRange = 0.9;
-    if (obsZ >= foxZ - collisionRange && obsZ <= foxZ + collisionRange) {
+    // Only check when near player in z
+    const zWindow = 2.0;
+    if (Math.abs(obsZ - foxZ) < zWindow) {
+      // lane check: we only check if same lane index to reduce computation
       if (obstacleGroup.lane === currentLane) {
         const foxX = foxPlayer.position.x;
         const obsX = orb.position.x;
-        const lateralRange = 0.9;
+        const lateralRange = 1.0;
         if (Math.abs(foxX - obsX) < lateralRange) {
           doGameOver();
           return;
@@ -785,21 +802,31 @@ function updateObstacles(deltaMultiplier){
       if (scoreEl) scoreEl.textContent = `Score: ${score}`;
     }
     
-    // Remove when too far
-    if (obsZ > 80) {
+    // Remove when too far in front (clean up)
+    if (obsZ > OBSTACLE_REMOVAL_Z) {
       try { 
-        scene.remove(orb); 
-        scene.remove(halo);
+        safeDisposeObstacle(obstacleGroup);
       } catch(e){}
       obstacles.splice(i,1);
     }
   }
   
-  // Spawn new obstacles
+  // Spawn new obstacles with spawn rate based on gameSpeed (clamped)
   obstacleSpawnTimer++;
-  const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140));
+  // As speed increases, spawn rate decreases; keep within bounds
+  const speedFactor = Math.min(1.5, 1 + (gameSpeed - BASE_GAME_SPEED) * 12);
+  const spawnRate = Math.max(SPAWN_MIN_RATE, Math.floor(SPAWN_MAX_RATE / speedFactor));
   if (obstacleSpawnTimer >= spawnRate) {
-    createObstacle(Math.floor(Math.random()*3));
+    // Random lane, but try to avoid overcrowding a single lane: count lane occupancy
+    const laneCounts = [0,0,0];
+    for (const og of obstacles) laneCounts[og.lane]++;
+    // prefer lanes with fewer obstacles
+    let laneIndex = Math.floor(Math.random()*3);
+    // bias away from stacked lanes
+    if (laneCounts[laneIndex] > 3) {
+      laneIndex = laneCounts.indexOf(Math.min(...laneCounts));
+    }
+    createObstacle(laneIndex);
     obstacleSpawnTimer = 0;
   }
 }
@@ -860,10 +887,10 @@ function init(){
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
   
-  // Maximize scene brightness
-  scene.add(new THREE.AmbientLight(0xffffff, 20)); 
+  // Maximize scene brightness (but keep values reasonable)
+  scene.add(new THREE.AmbientLight(0xffffff, 1.2)); 
   
-  const spot = new THREE.SpotLight(0xffffff, 20, 50, Math.PI/6, 0.3);
+  const spot = new THREE.SpotLight(0xffffff, 1.6, 100, Math.PI/6, 0.3);
   spot.position.set(0, 10, 10);
   scene.add(spot);
 
@@ -909,22 +936,22 @@ function animate(){
 
     // Floor movement is re-added here by scrolling the texture
     if (floorTexture) {
-      floorTexture.offset.y += gameSpeed * 0.02 * deltaMultiplier;
+      // guard: some texture objects won't have offset initially
+      if (floorTexture.offset) floorTexture.offset.y += gameSpeed * 0.02 * deltaMultiplier;
     }
     
     // PHASE FLOOR AND BACKGROUND COLOR
     updateFloorAndBackground();
 
-    // Billboard obstacles and halos (FIXED: Using quaternion copy for true billboard)
+    // Billboard obstacles and halos (halo is child of orb; rotate it to face camera)
     if (camera) {
       for (let obstacleGroup of obstacles) {
-        if (obstacleGroup.orb.userData && obstacleGroup.orb.userData.billboard) {
-          // quaternion.copy ensures the plane is exactly parallel to the camera plane
-          // preventing distortion (vertical ovals) caused by lookAt() perspective
-          obstacleGroup.orb.quaternion.copy(camera.quaternion);
-        }
-        if (obstacleGroup.halo.userData && obstacleGroup.halo.userData.billboard) {
-          obstacleGroup.halo.quaternion.copy(camera.quaternion);
+        // Ensure halo faces camera by copying quaternion
+        const orb = obstacleGroup.orb;
+        if (orb && orb.userData && orb.userData.halo) {
+          const halo = orb.userData.halo;
+          // Because depthTest is false, we can safely copy camera quaternion to halo
+          halo.quaternion.copy(camera.quaternion);
         }
       }
     }
@@ -936,17 +963,11 @@ function animate(){
 /* --- Color phase transition for floor and background (FOG EDITION) --- */
 function updateFloorAndBackground() {
   const numColors = colorSchemes.length;
-  // Calculate the current color index, making it loop using modulo (%)
   let levelIndex = Math.floor(score / 250) % numColors;
-  
-  // Calculate the next color index, ensuring it wraps back to 0 at the end
   const nextIndex = (levelIndex + 1) % numColors; 
-  
-  // 't' is the progress (0.0 to 1.0) through the current level's transition
   const t = (score % 250) / 250; 
 
-  
-  // --- FLOOR COLOR TRANSITION ---
+  // FLOOR COLOR TRANSITION
   const currentFloorColor = colorSchemes[levelIndex].floor;
   const nextFloorColor = colorSchemes[nextIndex].floor;
   const interpolatedFloorColor = currentFloorColor.clone().lerp(nextFloorColor, t);
@@ -956,15 +977,12 @@ function updateFloorAndBackground() {
     floorMesh.material.needsUpdate = true;
   }
   
-  
-  // FOG (SCENE TINT) COLOR TRANSITION
+  // FOG COLOR TRANSITION
   const currentFogColor = colorSchemes[levelIndex].fog;
   const nextFogColor = colorSchemes[nextIndex].fog;
-  // Lerp is the smooth transition function
   const interpolatedFogColor = currentFogColor.clone().lerp(nextFogColor, t);
 
   if (scene.fog) {
-    // Apply the smoothly interpolated color to the FOG
     scene.fog.color = interpolatedFogColor;
   }
 }
