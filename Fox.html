@@ -173,7 +173,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBgfoQLeOOqbKBuM69SO88jhCpfwrz_koo",
   authDomain: "qfox-29287.firebaseapp.com",
   projectId: "qfox-29287",
-  storageBucket: "qfox-29287.firebaseapp.com",
+  storageBucket: "qfox-29287.appspot.com",
   messagingSenderId: "778217166086",
   appId: "1:778217166086:web:1480312c499fdec6aafa87",
   measurementId: "G-VGEY7GV2QD"
@@ -472,30 +472,55 @@ function setupVideoBackground(){
   }
 }
 
-/* MOBILE CONTROLS */
+/* MOBILE CONTROLS - REPLACED WITH TAP-HALF HANDLER */
 function setupMobileControls() {
-  if (isMobile) {
-    mobileControls.style.display = 'flex';
-    
-    // Left button
-    document.getElementById('left-btn').addEventListener('touchstart', (e) => {
-      e.preventDefault();
+  // We still detect mobile but we remove visible controls and use left/right halves for taps
+  if (!isMobile) return;
+
+  // Ensure the existing mobile-controls element is hidden so no UI is visible
+  if (mobileControls) mobileControls.style.display = 'none';
+
+  // Touch handler: left half = left, right half = right
+  const touchHandler = (e) => {
+    // Protect UI interactions: ignore touches that start on inputs, buttons, or overlays
+    const target = e.target;
+    if (!target) return;
+
+    // if tapping inside overlay UIs, ignore (let the UI handle it)
+    if (target.tagName === 'INPUT'
+        || target.closest('#game-over-screen')
+        || target.closest('#leaderboard-screen')
+        || target.closest('#initials-form')
+        || target.closest('.restart-button')
+        || target.closest('.close-button')
+        || target.closest('.mobile-btn')
+    ) {
+      return;
+    }
+
+    // Use changedTouches for touchstart
+    const touch = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]);
+    if (!touch) return;
+
+    const touchX = touch.clientX;
+    const screenMid = window.innerWidth / 2;
+
+    // Start the game on first valid touch
+    if (!gameActive) {
+      startGame();
+      return;
+    }
+
+    // Move left if left half, otherwise move right
+    if (touchX < screenMid) {
       moveFox(currentLane - 1);
-    });
-    
-    // Right button
-    document.getElementById('right-btn').addEventListener('touchstart', (e) => {
-      e.preventDefault();
+    } else {
       moveFox(currentLane + 1);
-    });
-    
-    // Also allow tapping anywhere to start game
-    document.addEventListener('touchstart', (e) => {
-      if (!gameActive && e.target.className !== 'mobile-btn') {
-        startGame();
-      }
-    });
-  }
+    }
+  };
+
+  // Add listener (passive is true so it won't block scroll, and we aren't calling preventDefault)
+  window.addEventListener('touchstart', touchHandler, { passive: true });
 }
 
 /* CREATE FOX */
