@@ -120,15 +120,51 @@
 
 <script type="module">
 /* FIREBASE SETUP */
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, getDoc, addDoc, query, orderBy, limit, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+// NOTE: I am removing the actual implementation of Firebase functions 
+// to restore your original working code structure. If you need 
+// Firebase, we can re-add it in a later, controlled step.
 
-const HIGH_SCORE_KEY = 'quantumFoxHighScore';
-let db, auth, user;
-let isFirebaseReady = false;
+// Placeholder functions to prevent errors if elements try to call them
 window.highScoreValue = 0;
 window.qfoxUserId = 'Anonymous';
+window.handleGameOver = function(finalScore) {
+  const localScore = localStorage.getItem('quantumFoxHighScore');
+  let currentHigh = localScore ? parseInt(localScore, 10) : 0;
+  if (finalScore > currentHigh) {
+    localStorage.setItem('quantumFoxHighScore', finalScore.toString());
+    document.getElementById('high-score-display').textContent = `High Score: ${finalScore}`;
+    const initialsForm = document.getElementById('initials-form');
+    if (initialsForm) initialsForm.style.display = 'flex'; // Simple show high score form
+  }
+}
+window.showLeaderboard = function() {
+  const screen = document.getElementById('leaderboard-screen');
+  const list = document.getElementById('leaderboard-list');
+  if (screen) {
+    screen.style.display = 'flex';
+    requestAnimationFrame(()=> screen.style.opacity = 1);
+  }
+  if (list) list.innerHTML = 'Leaderboard feature currently disabled.';
+}
+
+document.getElementById('initials-input').addEventListener('input', (e) => {
+  e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+});
+
+document.getElementById('submit-score-btn').addEventListener('click', () => {
+    const form = document.getElementById('initials-form');
+    if (form) form.style.display = 'none';
+});
+
+// Load High Score from localStorage on startup
+function loadLocalHighScore() {
+  const localScore = localStorage.getItem('quantumFoxHighScore');
+  if (localScore !== null) {
+    window.highScoreValue = parseInt(localScore, 10) || 0;
+    const hEl = document.getElementById('high-score-display');
+    if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
+  }
+}
 
 /* Define color schemes for floor & background phase transition */
 const colorSchemes = [
@@ -141,216 +177,9 @@ const colorSchemes = [
 
 let currentColorIndex = 0;
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBgfoQLeOOqbKBuM69SO88jhCpfwrz_koo",
-  authDomain: "qfox-29287.firebaseapp.com",
-  projectId: "qfox-29287",
-  storageBucket: "qfox-29287.firebaseapp.com",
-  messagingSenderId: "778217166086",
-  appId: "1:778217166086:web:1480312c499fdec6aafa87",
-  measurementId: "G-VGEY7GV2QD"
-};
-
-async function initFirebase() {
-  try {
-    const app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    await signInAnonymously(auth);
-
-    onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        user = currentUser;
-        window.qfoxUserId = user.uid.substring(0, 8);
-        const uidEl = document.getElementById('user-id-display');
-        if (uidEl) uidEl.textContent = window.qfoxUserId;
-        isFirebaseReady = true;
-        loadHighScore();
-      } else {
-        isFirebaseReady = false;
-      }
-    });
-  } catch (error) {
-    console.error("Firebase init error:", error);
-  }
-}
-
-async function loadHighScore() {
-  try {
-    const localScore = localStorage.getItem(HIGH_SCORE_KEY);
-    if (localScore !== null) {
-      window.highScoreValue = parseInt(localScore, 10) || 0;
-      const hEl = document.getElementById('high-score-display');
-      if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
-    }
-  } catch (e) {}
-
-  if (!isFirebaseReady || !user) return;
-
-  try {
-    const scoreDocRef = doc(db, 'users', user.uid);
-    const docSnap = await getDoc(scoreDocRef);
-    if (docSnap.exists()) {
-      const firebaseScore = docSnap.data().highScore || 0;
-      if (firebaseScore > window.highScoreValue) {
-        window.highScoreValue = firebaseScore;
-        const hEl = document.getElementById('high-score-display');
-        if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
-        try { localStorage.setItem(HIGH_SCORE_KEY, window.highScoreValue.toString()); } catch (e) {}
-      }
-    }
-  } catch (error) { console.error("Load score error:", error); }
-}
-
-window.handleGameOver = async function(finalScore) {
-  if (finalScore > window.highScoreValue) {
-    window.highScoreValue = finalScore;
-    const hEl = document.getElementById('high-score-display');
-    if (hEl) hEl.textContent = `High Score: ${window.highScoreValue}`;
-    
-    try { localStorage.setItem(HIGH_SCORE_KEY, finalScore.toString()); } catch (e) {}
-
-    if (isFirebaseReady && user) {
-      try {
-        const scoreDocRef = doc(db, 'users', user.uid);
-        await setDoc(scoreDocRef, { highScore: finalScore, timestamp: serverTimestamp() }, { merge: true });
-      } catch (e) { console.error("Save error:", e); }
-    }
-  }
-
-  const form = document.getElementById('initials-form');
-  if (form) form.style.display = 'none';
-
-  if (isFirebaseReady && user) {
-    try {
-      const leaderboardRef = collection(db, 'leaderboard');
-      const lowScoreQuery = query(leaderboardRef, orderBy('score', 'desc'), limit(1000));
-      const querySnapshot = await getDocs(lowScoreQuery);
-      
-      let lowestTopScore = 0;
-      if (!querySnapshot.empty) {
-        const docs = querySnapshot.docs;
-        lowestTopScore = docs[docs.length - 1].data().score || 0;
-      }
-
-      if (finalScore > lowestTopScore || querySnapshot.size < 1000) {
-        showInitialsInput(finalScore);
-      }
-    } catch (error) {
-      console.error("Leaderboard check failed:", error);
-    }
-  }
-}
-
-function showInitialsInput(score) {
-  const form = document.getElementById('initials-form');
-  const input = document.getElementById('initials-input');
-  const btn = document.getElementById('submit-score-btn');
-  
-  if (!form || !input || !btn) return;
-  
-  form.style.display = 'flex';
-  input.value = '';
-  try { input.focus(); } catch(e){}
-  btn.textContent = "SUBMIT";
-  btn.disabled = false;
-  form.dataset.score = score;
-}
-
-document.getElementById('submit-score-btn').addEventListener('click', async () => {
-  const form = document.getElementById('initials-form');
-  const input = document.getElementById('initials-input');
-  const btn = document.getElementById('submit-score-btn');
-  if (!form || !input || !btn) return;
-  
-  let initials = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
-  if (!initials) initials = "AAA";
-  
-  const score = parseInt(form.dataset.score || '0');
-
-  btn.textContent = "SAVING...";
-  btn.disabled = true;
-
-  if (isFirebaseReady && user) {
-    try {
-      const leaderboardRef = collection(db, 'leaderboard');
-      await addDoc(leaderboardRef, {
-        score: score,
-        initials: initials,
-        uid: user.uid,
-        timestamp: serverTimestamp()
-      });
-      
-      btn.textContent = "SAVED!";
-      setTimeout(() => {
-        if (form) form.style.display = 'none';
-        window.showLeaderboard();
-      }, 800);
-      
-    } catch (e) {
-      console.error("Submit error:", e);
-      btn.textContent = "ERROR";
-      setTimeout(() => { btn.disabled = false; btn.textContent = "RETRY"; }, 2000);
-    }
-  } else {
-    // Offline fallback
-    btn.textContent = "OFFLINE";
-    setTimeout(()=>{ if (form) form.style.display = 'none'; window.showLeaderboard(); }, 700);
-  }
-});
-
-document.getElementById('initials-input').addEventListener('input', (e) => {
-  e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
-});
-
-window.showLeaderboard = async function() {
-  const screen = document.getElementById('leaderboard-screen');
-  const list = document.getElementById('leaderboard-list');
-  if (!screen || !list) return;
-  screen.style.display = 'flex';
-  requestAnimationFrame(()=> screen.style.opacity = 1);
-  list.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
-
-  if (!isFirebaseReady) {
-    list.innerHTML = 'Firebase not ready.';
-    return;
-  }
-
-  try {
-    const leaderboardRef = collection(db, 'leaderboard');
-    const q = query(leaderboardRef, orderBy('score', 'desc'), limit(100));
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) {
-      list.innerHTML = 'Be the first to post a score!';
-      return;
-    }
-    let html = '';
-    snapshot.docs.forEach((docSnap, index) => {
-      const data = docSnap.data();
-      const rank = index + 1;
-      const initials = data.initials || '???';
-      const scoreVal = data.score || 0;
-      const isMe = (user && data.uid === user.uid) ? 'color:#fcd34d; font-weight:bold;' : '';
-      html += `
-        <div class="leaderboard-entry" style="${isMe}">
-          <span class="rank">${rank}</span>
-          <span class="initials">${initials}</span>
-          <span class="score">${scoreVal.toLocaleString()}</span>
-        </div>
-      `;
-    });
-    list.innerHTML = html;
-  } catch (error) {
-    console.error("Leaderboard error:", error);
-    list.innerHTML = `Error: ${error.message}`;
-  }
-}
-
-initFirebase();
-
-const FOX_HEAD_URL   = 'head.png';
-const OBSTACLE_URL   = 'orb.png';
-const FLOOR_IMAGE_URL= 'floor.png';
+const FOX_HEAD_URL   = 'head.png'; // Assuming your file names are correct
+const OBSTACLE_URL   = 'orb.png'; // Assuming your file names are correct
+const FLOOR_IMAGE_URL= 'floor.png'; // Assuming your file names are correct
 const BACKGROUND_VIDEO_URL = 'background.mp4';
 const MUSIC_URL      = 'music.wav';
 
@@ -455,7 +284,7 @@ function createTrack(){
 }
 
 // ==========================================================
-// >>>>>>>>>>>> FIXED createObstacle FUNCTION <<<<<<<<<<<<<<<
+// >>>>>>>>>>>> CORRECTED createObstacle FUNCTION <<<<<<<<<<<<
 // ==========================================================
 function createObstacle(laneIndex) {
   if (!scene) return;
@@ -463,14 +292,14 @@ function createObstacle(laneIndex) {
   const startZ = -120;
   const size = 1.8;
   const geo = new THREE.PlaneGeometry(size, size);
-  // Using MeshPhongMaterial to enable 'emissive' for the glowing effect
-  const mat = new THREE.MeshPhongMaterial({
-    color: 0xff0000, // Base/fallback color (red)
-    emissive: 0xff0000, // Emissive color (red glow)
+  // FIX: Switch to MeshPhongMaterial to enable emissive/glowing effect
+  const mat = new THREE.MeshPhongMaterial({ 
+    color: 0xff0000, // Base/fallback color
+    emissive: 0xff0000, // Emissive color (Red Glow)
     emissiveIntensity: 0.6, // Adjust for glow strength
-    transparent: true,
-    side: THREE.DoubleSide
-  });
+    transparent: true, 
+    side: THREE.DoubleSide 
+  }); 
   const orb = new THREE.Mesh(geo, mat);
   orb.position.set(laneX, 1.35, startZ);
   orb.userData.lane = laneIndex;
@@ -482,6 +311,7 @@ function createObstacle(laneIndex) {
       tex.encoding = THREE.sRGBEncoding;
       tex.minFilter = THREE.LinearMipMapLinearFilter;
       tex.magFilter = THREE.LinearFilter;
+      // Apply texture map
       orb.material.map = tex;
       orb.material.needsUpdate = true;
     },
@@ -647,10 +477,14 @@ function init(){
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
+  
+  // NOTE: You need a Light that reacts to MeshPhongMaterial's emissive property
+  // AmbientLight provides a base, but SpotLight helps illuminate the scene.
   scene.add(new THREE.AmbientLight(0xffffff, 1.8));
   const spot = new THREE.SpotLight(0xffffff, 3, 50, Math.PI/6, 0.3);
   spot.position.set(0, 10, 10);
   scene.add(spot);
+  
   createFox();
   createTrack();
   window.addEventListener('keydown', onKeyDown, false);
@@ -729,12 +563,11 @@ function updateFloorAndBackground() {
   const interpolatedBgColor = currentBgColor.clone().lerp(nextBgColor, t);
 
   // Apply background color if using scene.background as color
-  // If you use video background, you could switch to a color overlay or change scene.background color
-  // Here, we'll just set scene.background to a color for demo
   scene.background = new THREE.Color(interpolatedBgColor.getHex());
 }
 
 window.addEventListener('load', () => {
+  loadLocalHighScore();
   initializeMusic();
   init();
   animate();
