@@ -76,9 +76,27 @@
     .leaderboard-entry .rank { width:10%; text-align:center; color:#10b981; }
     .leaderboard-entry .initials { width:30%; text-align:left; }
     .leaderboard-entry .score { width:30%; text-align:right; }
+    
+    #loading-screen {
+      position:absolute; inset:0; display:flex; z-index:40; align-items:center; justify-content:center;
+      background: #0d1117; color:#f3f4f6; flex-direction:column; transition:opacity .5s;
+    }
+    .loading-spinner {
+      width:50px; height:50px; border:5px solid #3b82f6; border-top:5px solid transparent;
+      border-radius:50%; animation:spin 1s linear infinite; margin-bottom:20px;
+    }
+    @keyframes spin {
+      0% { transform:rotate(0deg); }
+      100% { transform:rotate(360deg); }
+    }
   </style>
 </head>
 <body>
+  <div id="loading-screen">
+    <div class="loading-spinner"></div>
+    <p style="font-size:1.2rem; color:#fcd34d;">Loading Quantum Fox...</p>
+  </div>
+
   <div id="ui-container">
     <div id="score-display" class="info-box">Score: 0</div>
     <div id="high-score-display" class="info-box">High Score: 0</div>
@@ -276,7 +294,10 @@ document.getElementById('submit-score-btn').addEventListener('click', async () =
   if (!form || !input || !btn) return;
   
   let initials = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
-  if (!initials) initials = "AAA";
+  if (!initials) {
+    alert("Please enter your initials (3 letters)");
+    return;
+  }
   
   const score = parseInt(form.dataset.score || '0');
 
@@ -371,6 +392,18 @@ function initializeMusic() {
   bgm = new Audio(MUSIC_URL);
   bgm.loop = true;
   bgm.volume = 0.7;
+  
+  // Enable audio on first user interaction
+  const enableAudio = () => {
+    if (bgm && bgm.paused) {
+      bgm.play().catch(e => console.warn("Audio play failed:", e));
+    }
+    document.removeEventListener('click', enableAudio);
+    document.removeEventListener('touchstart', enableAudio);
+  };
+  
+  document.addEventListener('click', enableAudio);
+  document.addEventListener('touchstart', enableAudio);
 }
 
 /* GLOBALS */
@@ -405,6 +438,7 @@ const container = document.getElementById('game-container');
 const scoreDisplay = document.getElementById('score-display');
 const gameOverScreen = document.getElementById('game-over-screen');
 const finalScoreEl = document.getElementById('final-score');
+const loadingScreen = document.getElementById('loading-screen');
 
 const textureLoader = new THREE.TextureLoader();
 
@@ -416,13 +450,26 @@ function setupVideoBackground(){
     vid.loop = true;
     vid.muted = true;
     vid.playsInline = true;
-    vid.play().catch(()=>{});
+    vid.setAttribute('playsinline', '');
+    
+    // Wait for user interaction to play video
+    const playVideo = () => {
+      vid.play().catch(()=>{});
+      document.removeEventListener('click', playVideo);
+      document.removeEventListener('touchstart', playVideo);
+    };
+    
+    document.addEventListener('click', playVideo);
+    document.addEventListener('touchstart', playVideo);
+    
     const vtex = new THREE.VideoTexture(vid);
     vtex.minFilter = THREE.LinearFilter;
     vtex.magFilter = THREE.LinearFilter;
     scene.background = vtex;
   } catch (e) {
     console.warn('Video background failed:', e);
+    // Fallback to solid color
+    scene.background = new THREE.Color(0x111827);
   }
 }
 
@@ -497,20 +544,28 @@ function startGame(){
     init();
   }
   
-  // Attempt to play music on a user gesture (which leads to startGame)
-  if (bgm && bgm.paused) {
-    bgm.play().catch(error => {
-      console.warn("Audio playback failed (usually a mobile browser restriction):", error.message);
-    });
+  // Hide loading screen
+  if (loadingScreen) {
+    loadingScreen.style.opacity = '0';
+    setTimeout(() => { loadingScreen.style.display = 'none'; }, 500);
   }
+
+  // Clean up old obstacles properly
+  obstacles.forEach(obs => {
+    if (obs.geometry) obs.geometry.dispose();
+    if (obs.material) {
+      if (obs.material.map) obs.material.map.dispose();
+      obs.material.dispose();
+    }
+    scene.remove(obs);
+  });
+  obstacles = [];
 
   gameActive = true;
   score = 0;
   gameSpeed = BASE_GAME_SPEED;
   currentLane = 1;
   if (foxPlayer) foxPlayer.position.x = lanePositions[currentLane];
-  obstacles.forEach(o=>{ try { scene.remove(o); } catch(e){} });
-  obstacles = [];
   obstacleSpawnTimer = 0;
   const scoreEl = document.getElementById('score-display');
   if (scoreEl) scoreEl.textContent = `Score: ${score}`;
