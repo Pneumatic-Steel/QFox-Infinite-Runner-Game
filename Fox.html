@@ -441,6 +441,7 @@
     let obstacles = [];
     let obstacleSpawnTimer = 0;
     let gameSpeed = 0.25;
+    let isSwitchingLanes = false;
     const BASE_GAME_SPEED = 0.25;
     const SPEED_INCREASE_RATE = 0.0006;
     let runningTime = 0;
@@ -559,22 +560,31 @@
     }
 
     /* MOVE FOX */
-    function moveFox(newLane){
-      if (!gameActive) {
-        startGame(); // Start game on first input if not active
-        return;
-      }
-      if (!foxPlayer) return;
-      if (newLane < 0 || newLane > 2) return;
-      if (newLane === currentLane) return;
-      currentLane = newLane;
-      const targetX = lanePositions[currentLane];
-      TWEEN.removeAll();
-      new TWEEN.Tween(foxPlayer.position)
-        .to({ x: targetX }, 150)
-        .easing(TWEEN.Easing.Quadratic.Out)
-        .start();
-    }
+ function moveFox(newLane){
+  if (!gameActive) {
+    startGame();
+    return;
+  }
+
+  if (!foxPlayer) return;
+  if (isSwitchingLanes) return; // ✅ LOCK
+  if (newLane < 0 || newLane > 2) return;
+  if (newLane === currentLane) return;
+
+  isSwitchingLanes = true;
+  currentLane = newLane;
+
+  const targetX = lanePositions[currentLane];
+
+  TWEEN.removeAll();
+  new TWEEN.Tween(foxPlayer.position)
+    .to({ x: targetX }, 150)
+    .easing(TWEEN.Easing.Quadratic.Out)
+    .onComplete(() => {
+      isSwitchingLanes = false; // ✅ UNLOCK when lane reached
+    })
+    .start();
+}
 
     /* UPDATE OBSTACLES */
     function updateObstacles(deltaMultiplier){
@@ -798,3 +808,4 @@
   </script>
 </body>
 </html>
+
