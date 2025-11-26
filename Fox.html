@@ -132,23 +132,24 @@ window.qfoxUserId = 'Anonymous';
 
 /* Define color schemes for floor & background phase transition (VIBRANT FOG EDITION) */
 const colorSchemes = [
+  // 🔥 FIX 1: Brightened floor colors for better visibility and neon effect
   // LEVEL 1 (Score 0-249): Dark Blue/Black (Initial Look)
-  { floor: new THREE.Color('#1f2937'), fog: new THREE.Color('#111827') }, // 0
+  { floor: new THREE.Color('#4a5568'), fog: new THREE.Color('#111827') }, // 0
   
   // LEVEL 2 (Score 250-499): Vibrant Red
-  { floor: new THREE.Color('#A01010'), fog: new THREE.Color('#FF0000') }, // 1
+  { floor: new THREE.Color('#cc3333'), fog: new THREE.Color('#FF0000') }, // 1
   
   // LEVEL 3 (Score 500-749): Bright Green
-  { floor: new THREE.Color('#008000'), fog: new THREE.Color('#00FF00') }, // 2
+  { floor: new THREE.Color('#33cc33'), fog: new THREE.Color('#00FF00') }, // 2
   
   // LEVEL 4 (Score 750-999): Electric Blue
-  { floor: new THREE.Color('#1010A0'), fog: new THREE.Color('#00FFFF') }, // 3
+  { floor: new THREE.Color('#3333cc'), fog: new THREE.Color('#00FFFF') }, // 3
   
   // LEVEL 5 (Score 1000-1249): Hot Pink/Magenta
-  { floor: new THREE.Color('#A010A0'), fog: new THREE.Color('#FF00FF') }, // 4
+  { floor: new THREE.Color('#cc33cc'), fog: new THREE.Color('#FF00FF') }, // 4
   
   // LEVEL 6 (Score 1250+): Orange/Gold
-  { floor: new THREE.Color('#B8860B'), fog: new THREE.Color('#FF8C00') }, // 5
+  { floor: new THREE.Color('#ffd700'), fog: new THREE.Color('#FF8C00') }, // 5
 ];
 
 let currentColorIndex = 0;
@@ -472,7 +473,7 @@ function createObstacle(laneIndex) {
     transparent:true, 
     side: THREE.DoubleSide,
     emissive: 0xffcc00, // Golden glow color
-    emissiveIntensity: 16.0 // 🔥 FIX 2: Increased from 8.0 to 16.0 for maximum glow
+    emissiveIntensity: 32.0 // 🔥 FIX 2: Doubled again for maximum glow
   });
 
   const orb = new THREE.Mesh(geo, mat);
@@ -661,10 +662,9 @@ function init(){
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
   
-  // 🔥 FIX 1: Maximize scene brightness. Increased Ambient Light intensity (10 -> 20)
+  // Lighting: High intensity (20) for a bright scene
   scene.add(new THREE.AmbientLight(0xffffff, 20)); 
   
-  // 🔥 FIX 1: Maximize scene brightness. Increased SpotLight intensity (10 -> 20)
   const spot = new THREE.SpotLight(0xffffff, 20, 50, Math.PI/6, 0.3);
   spot.position.set(0, 10, 10);
   scene.add(spot);
