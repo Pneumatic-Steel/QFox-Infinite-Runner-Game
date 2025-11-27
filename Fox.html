@@ -649,7 +649,7 @@ canvas {
         const TRAIL_BASE_WIDTH = 1.6;      // max width at the fox
         const TRAIL_MIN_WIDTH = 0.12;      // tail min width
         const TRAIL_SMOOTH = 0.28;         // smoothing factor for internal smoothing
-        const TRAIL_Z_OFFSET = -0.2;        // push trail back from fox so it stays visually behind
+        const TRAIL_Z_OFFSET = -1.0;        // push trail back from fox so it stays visually behind
         let trailPoints = [];
         let trailGeometry, trailMesh;
         let trailPositionsArray, trailColorsArray, trailIndexArray;
@@ -1154,5 +1154,6 @@ canvas {
     </script>
 </body>
 </html>
+
 
 
