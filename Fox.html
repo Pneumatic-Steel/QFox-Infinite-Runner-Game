@@ -610,8 +610,8 @@ canvas {
             const orbGeo = new THREE.PlaneGeometry(size, size);
             const orbMat = new THREE.MeshBasicMaterial({
                 color:0xffffff,
-                transparent:false,
-                side: THREE.DoubleSide
+                transparent:true,
+                side: THREE.FrontSide
             });
 
             const orb = new THREE.Mesh(orbGeo, orbMat);
@@ -944,4 +944,5 @@ canvas {
     </script>
 </body>
 </html>
+
 
