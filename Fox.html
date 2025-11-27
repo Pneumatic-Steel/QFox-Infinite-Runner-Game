@@ -498,14 +498,16 @@ canvas {
         let currentLane = 1;
         let obstacles = [];
         let obstacleSpawnTimer = 0;
-        let gameSpeed = 0.25;
-        const BASE_GAME_SPEED = 0.25;
-        const SPEED_INCREASE_RATE = 0.0006;
+        
+        // REFACTORED: Speed is now defined in units per second (was 0.25 units per frame @ 60fps)
+        const BASE_GAME_SPEED = 15.0; 
+        const SPEED_INCREASE_RATE = 0.036; // Increase per second (was 0.0006 per frame)
+        let gameSpeed = BASE_GAME_SPEED;
+
         let runningTime = 0;
         const FOX_BASE_HEIGHT = 1.2;
         let lastTime = performance.now();
-        const TARGET_FPS = 60;
-        const FRAME_TIME = 1000 / TARGET_FPS;
+        // Removed TARGET_FPS and FRAME_TIME constants
 
         const container = document.getElementById('game-container');
         const scoreDisplay = document.getElementById('score-display');
@@ -578,15 +580,11 @@ canvas {
 
             const laneX = lanePositions[laneIndex];
             const startZ = -120;
-            const size = 2.6; // This is the base dimension (now the height)
+            const size = 2.6; 
             const haloSize = 3.0;
             
-            // --- FIX START: Adjust the aspect ratio for the orb's width ---
-            // If the orb image is wider than it is tall, this ratio will be > 1.
-            // Formula: Image Width / Image Height
-            // Example: If image is 768px wide and 512px tall, ratio is 1.5.
-            const orbWidthRatio = 1.5; // Changed from 1.2 to 1.5 for a wider orb. ADJUST THIS VALUE.
-            // --- FIX END ---
+            // This is the ratio based on your last feedback (Width / Height)
+            const orbWidthRatio = 1.5; 
 
             // Create halo with additive blending for glow effect
             const haloGeo = new THREE.PlaneGeometry(haloSize, haloSize);
@@ -614,8 +612,6 @@ canvas {
             scene.add(halo);
 
             // Create orb (in front of halo)
-            // PlaneGeometry(width, height)
-            // We set the height to 'size' and calculate the necessary width using the ratio.
             const orbGeo = new THREE.PlaneGeometry(size * orbWidthRatio, size); 
             const orbMat = new THREE.MeshBasicMaterial({
                 color:0xffffff,
@@ -658,11 +654,13 @@ canvas {
 
             gameActive = true;
             score = 0;
+            // Reset game speed to units per second
             gameSpeed = BASE_GAME_SPEED;
             currentLane = 1;
 
             if (foxPlayer) foxPlayer.position.x = lanePositions[currentLane];
 
+            // Cleanup objects
             obstacles.forEach(o=>{
                 try {
                     scene.remove(o);
@@ -709,15 +707,18 @@ canvas {
                 .start();
         }
 
-        /* UPDATE OBSTACLES */
-        function updateObstacles(deltaMultiplier){
+        /* UPDATE OBSTACLES (Framerate Independent) */
+        function updateObstacles(deltaTimeSeconds){
             if (!foxPlayer) return;
 
-            gameSpeed += SPEED_INCREASE_RATE * deltaMultiplier;
+            // Increase speed by rate per second
+            gameSpeed += SPEED_INCREASE_RATE * deltaTimeSeconds; 
 
             for (let i = obstacles.length - 1; i >= 0; i--){
                 const obs = obstacles[i];
-                obs.position.z += gameSpeed * deltaMultiplier;
+                
+                // Movement is now calculated as: Speed (units/sec) * DeltaTime (sec)
+                obs.position.z += gameSpeed * deltaTimeSeconds;
 
                 // Update halo position
                 if (obs.userData.halo) {
@@ -729,6 +730,7 @@ canvas {
                 const obsZ = obs.position.z;
                 const collisionRange = 0.9;
 
+                // Collision Check
                 if (obsZ >= foxZ - collisionRange && obsZ <= foxZ + collisionRange) {
                     if (obs.userData.lane === currentLane) {
                         const foxX = foxPlayer.position.x;
@@ -741,6 +743,7 @@ canvas {
                     }
                 }
 
+                // Scoring Check
                 if (obsZ > foxZ + 2 && !obs.userData.scored) {
                     obs.userData.scored = true;
                     score += 10;
@@ -748,6 +751,7 @@ canvas {
                     if (scoreEl) scoreEl.textContent = `Score: ${score}`;
                 }
 
+                // Cleanup Check
                 if (obsZ > 80) {
                     try {
                         scene.remove(obs);
@@ -760,7 +764,11 @@ canvas {
             }
 
             obstacleSpawnTimer++;
-            const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140));
+            
+            // Adjust spawn rate based on speed (higher speed -> lower spawn interval)
+            // 70 frames @ 60fps = 1.16s, 18 frames @ 60fps = 0.3s. 
+            // We use the same multiplier of 140, but now the resulting value is the interval in frames, independent of DeltaTime.
+            const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140 / 60)); 
 
             if (obstacleSpawnTimer >= spawnRate) {
                 createObstacle(Math.floor(Math.random()*3));
@@ -888,20 +896,27 @@ canvas {
             requestAnimationFrame(animate);
 
             const currentTime = performance.now();
-            const deltaTime = currentTime - lastTime;
+            // Calculate delta time in seconds
+            const deltaTimeSeconds = (currentTime - lastTime) / 1000;
             lastTime = currentTime;
-            const deltaMultiplier = deltaTime / FRAME_TIME;
+            
+            // Limit delta time to prevent physics explosions on backgrounded tabs or massive lag spikes
+            const clampedDelta = Math.min(deltaTimeSeconds, 0.1); 
 
             TWEEN.update();
 
             if (gameActive) {
-                updateObstacles(deltaMultiplier);
-                runningTime += 0.11 * deltaMultiplier;
+                // Pass seconds to the update function for framerate independence
+                updateObstacles(clampedDelta); 
+                
+                // Use a factor of seconds for smooth time-based animation
+                runningTime += 6 * clampedDelta; 
 
-                if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
+                if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime) * 0.1;
 
                 if (floorTexture) {
-                    floorTexture.offset.y += gameSpeed * 0.02 * deltaMultiplier;
+                    // Floor texture offset also uses speed and delta time
+                    floorTexture.offset.y += gameSpeed * 0.02 * clampedDelta;
                 }
 
                 updateFloorAndBackground();
