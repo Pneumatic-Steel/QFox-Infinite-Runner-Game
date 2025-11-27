@@ -578,7 +578,7 @@ canvas {
 
             const laneX = lanePositions[laneIndex];
             const startZ = -120;
-            const size = 2.6;
+            const size = 2.4;
             const haloSize = 2.6;
 
             // Create halo with additive blending for glow effect
@@ -615,7 +615,7 @@ canvas {
             });
 
             const orb = new THREE.Mesh(orbGeo, orbMat);
-            orb.position.set(laneX, 1.35, startZ);
+            orb.position.set(laneX, 1.35, startZ - 0.2);
             orb.userData.lane = laneIndex;
             orb.userData.billboard = true;
             orb.userData.halo = halo;
@@ -623,6 +623,8 @@ canvas {
             textureLoader.load(OBSTACLE_URL, tex => {
                 tex.encoding = THREE.sRGBEncoding;
                 orb.material.map = tex;
+                tex.minFilter = THREE.LinearMipMapLinearFilter;
+                tex.magFilter = THREE.LinearFilter;
                 orb.material.needsUpdate = true;
             }, undefined, (err) => {
                 console.warn('Orb texture failed to load:', err);
@@ -942,6 +944,7 @@ canvas {
     </script>
 </body>
 </html>
+
 
 
 
