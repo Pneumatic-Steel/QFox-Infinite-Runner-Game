@@ -611,7 +611,7 @@ canvas {
             const orbMat = new THREE.MeshBasicMaterial({
                 color:0xffffff,
                 transparent:true,
-                side: THREE.FrontSide
+                side: THREE.DoubleSide
             });
 
             const orb = new THREE.Mesh(orbGeo, orbMat);
@@ -622,8 +622,6 @@ canvas {
 
             textureLoader.load(OBSTACLE_URL, tex => {
                 tex.encoding = THREE.sRGBEncoding;
-                tex.minFilter = THREE.LinearMipMapLinearFilter;
-                tex.magFilter = THREE.LinearFilter;
                 orb.material.map = tex;
                 orb.material.needsUpdate = true;
             }, undefined, (err) => {
@@ -944,5 +942,6 @@ canvas {
     </script>
 </body>
 </html>
+
 
 
