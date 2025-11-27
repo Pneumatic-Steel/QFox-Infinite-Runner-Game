@@ -578,15 +578,14 @@ canvas {
 
             const laneX = lanePositions[laneIndex];
             const startZ = -120;
-            const size = 2.6; // This is the orb's width (X dimension in PlaneGeometry)
+            const size = 2.6; // This is the base dimension (now the height)
             const haloSize = 3.0;
             
-            // --- FIX START ---
-            // Adjust this ratio based on your 'orb.png' file's aspect ratio: (Image Height / Image Width)
-            // If the image is 512x512, use 1.0 (defaulting to square).
-            // If the image is 512x1024 (tall), use 2.0.
-            // If the image is 1024x512 (wide), use 0.5.
-            const orbHeightRatio = 1.2; // Example: assuming the image is 1.2x taller than wide. ADJUST THIS VALUE.
+            // --- FIX START: Adjust the aspect ratio for the orb's width ---
+            // If the orb image is wider than it is tall, this ratio will be > 1.
+            // Formula: Image Width / Image Height
+            // Example: If image is 768px wide and 512px tall, ratio is 1.5.
+            const orbWidthRatio = 1.5; // Changed from 1.2 to 1.5 for a wider orb. ADJUST THIS VALUE.
             // --- FIX END ---
 
             // Create halo with additive blending for glow effect
@@ -615,8 +614,9 @@ canvas {
             scene.add(halo);
 
             // Create orb (in front of halo)
-            // The height of the plane is now adjusted by the orbHeightRatio
-            const orbGeo = new THREE.PlaneGeometry(size, size * orbHeightRatio);
+            // PlaneGeometry(width, height)
+            // We set the height to 'size' and calculate the necessary width using the ratio.
+            const orbGeo = new THREE.PlaneGeometry(size * orbWidthRatio, size); 
             const orbMat = new THREE.MeshBasicMaterial({
                 color:0xffffff,
                 transparent:true,
