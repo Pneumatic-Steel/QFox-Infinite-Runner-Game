@@ -578,7 +578,7 @@ canvas {
 
             const laneX = lanePositions[laneIndex];
             const startZ = -120;
-            const size = 2.2;
+            const size = 2.6;
             const haloSize = 2.6;
 
             // Create halo with additive blending for glow effect
@@ -610,7 +610,7 @@ canvas {
             const orbGeo = new THREE.PlaneGeometry(size, size);
             const orbMat = new THREE.MeshBasicMaterial({
                 color:0xffffff,
-                transparent:true,
+                transparent:false,
                 side: THREE.DoubleSide
             });
 
@@ -944,3 +944,4 @@ canvas {
     </script>
 </body>
 </html>
+
