@@ -195,7 +195,7 @@ canvas {
         <p style="font-size:1.25rem; margin:0 0 1rem 0;">Final Distance Run: <span id="final-score" style="color:#fbbf24; font-weight:800;">0</span></p>
         <div id="initials-form">
             <p style="font-size:1.2rem; color:#fcd34d; font-weight:800; margin-bottom:10px;">NEW HIGH SCORE!</p>
-            <!-- maxlength updated to 5 -->
+            <!-- 5 initials instead of 3 -->
             <input type="text" id="initials-input" maxlength="5" placeholder="_____" autocomplete="off">
             <button id="submit-score-btn">SUBMIT</button>
         </div>
@@ -229,19 +229,25 @@ canvas {
         window.highScoreValue = 0;
         window.qfoxUserId = 'Anonymous';
 
-        /* Define color schemes for floor & background phase transition (VIBRANT FOG EDITION) */
+        /* Color schemes for floor & fog */
         const colorSchemes = [
-            /* 0 */ { floor: new THREE.Color('#1f2937'), fog: new THREE.Color('#111827') },
-            /* 1 */ { floor: new THREE.Color('#A01010'), fog: new THREE.Color('#FF0000') },
-            /* 2 */ { floor: new THREE.Color('#008000'), fog: new THREE.Color('#00FF00') },
-            /* 3 */ { floor: new THREE.Color('#1010A0'), fog: new THREE.Color('#00FFFF') },
-            /* 4 */ { floor: new THREE.Color('#A010A0'), fog: new THREE.Color('#FF00FF') },
-            /* 5 */ { floor: new THREE.Color('#B8860B'), fog: new THREE.Color('#FF8C00') },
+            // LEVEL 1 (Score 0-249): Dark Blue/Black
+            { floor: new THREE.Color('#1f2937'), fog: new THREE.Color('#111827') }, // 0
+            // LEVEL 2 (Score 250-499): Vibrant Red
+            { floor: new THREE.Color('#A01010'), fog: new THREE.Color('#FF0000') }, // 1
+            // LEVEL 3 (Score 500-749): Bright Green
+            { floor: new THREE.Color('#008000'), fog: new THREE.Color('#00FF00') }, // 2
+            // LEVEL 4 (Score 750-999): Electric Blue
+            { floor: new THREE.Color('#1010A0'), fog: new THREE.Color('#00FFFF') }, // 3
+            // LEVEL 5 (Score 1000-1249): Hot Pink/Magenta
+            { floor: new THREE.Color('#A010A0'), fog: new THREE.Color('#FF00FF') }, // 4
+            // LEVEL 6 (Score 1250+): Orange/Gold
+            { floor: new THREE.Color('#B8860B'), fog: new THREE.Color('#FF8C00') }, // 5
         ];
         let currentColorIndex = 0;
 
-        // Reverse copy for trail (opposite)
-        const reverseColorSchemes = colorSchemes.slice().reverse();
+        /* Reverse color schemes for the trail (opposite of floor progression) */
+        const reverseColorSchemes = [...colorSchemes].slice().reverse();
 
         const firebaseConfig = {
             apiKey: "AIzaSyBgfoQLeOOqbKBuM69SO88jhCpfwrz_koo",
@@ -375,9 +381,9 @@ canvas {
             const btn = document.getElementById('submit-score-btn');
             if (!form || !input || !btn) return;
 
-            // Allow up to 5 letters now
+            // 5-letter initials max
             let initials = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
-            if (!initials) initials = "AAAAA".slice(0, Math.min(3,5)); // fallback (if you want AAA by default)
+            if (!initials) initials = "AAAAA";
             const score = parseInt(form.dataset.score || '0');
 
             btn.textContent = "SAVING...";
@@ -416,8 +422,8 @@ canvas {
             }
         });
 
-        // Enforce 5-char uppercase letters in input
         document.getElementById('initials-input').addEventListener('input', (e) => {
+            // 5 letters max, uppercase
             e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
         });
 
@@ -471,7 +477,6 @@ canvas {
 
         initFirebase();
 
-
         const FOX_HEAD_URL = 'head.png';
         const OBSTACLE_URL = 'orb.png';
         const HALO_URL = 'halo.png';
@@ -506,6 +511,7 @@ canvas {
         let lastTime = performance.now();
         const TARGET_FPS = 60;
         const FRAME_TIME = 1000 / TARGET_FPS;
+        let firstRun = true; // only first start can be from any key/tap
 
         const container = document.getElementById('game-container');
         const scoreDisplay = document.getElementById('score-display');
@@ -513,10 +519,19 @@ canvas {
         const finalScoreEl = document.getElementById('final-score');
         const textureLoader = new THREE.TextureLoader();
 
-        // Controls whether the very first key/tap can start the game.
-        // After the first run and after a Game Over, keys/taps no longer restart;
-        // player must press RESTART button.
-        let firstRun = true;
+        /* TRAIL GLOBALS */
+        let trailInitialized = false;
+        let trailPoints = [];
+        let trailGeometry = null;
+        let trailMesh = null;
+
+        const TRAIL_SEGMENTS    = 40;
+        const TRAIL_BASE_WIDTH  = 1.6;
+        const TRAIL_MIN_WIDTH   = 0.12;
+        const TRAIL_SMOOTH      = 0.28;
+        const TRAIL_Z_OFFSET    = 1.3;   // positive; we subtract this to push trail BEHIND fox
+        const TRAIL_Y_OFFSET    = 0.4;   // lift ribbon slightly above floor
+        const TRAIL_LENGTH      = 18.0;  // how far the tail stretches behind the fox
 
         function setupVideoBackground(){
             if (!scene) return;
@@ -548,13 +563,13 @@ canvas {
                 foxPlayer.material = new THREE.MeshBasicMaterial({
                     map: tex,
                     transparent: true,
-                    side: THREE.FrontSide,
+                    side: THREE.FrontSide
                 });
                 foxPlayer.material.needsUpdate = true;
             });
 
             foxPlayer.position.set(lanePositions[currentLane], FOX_BASE_HEIGHT, 5);
-            foxPlayer.renderOrder = 5; // ensure fox renders after 
+            foxPlayer.renderOrder = 2; // draw fox on top of trail
             scene.add(foxPlayer);
         }
 
@@ -579,17 +594,183 @@ canvas {
             floorTexture = tex;
         }
 
+        /* RIBBON TRAIL INIT */
+        function initRibbonTrail() {
+            if (trailInitialized || !foxPlayer || !scene) return;
+            trailInitialized = true;
+
+            trailPoints = [];
+            const startPos = foxPlayer.position.clone();
+            startPos.y += TRAIL_Y_OFFSET;
+            for (let i = 0; i < TRAIL_SEGMENTS; i++) {
+                trailPoints.push(startPos.clone());
+            }
+
+            const positionArray = new Float32Array(TRAIL_SEGMENTS * 2 * 3);
+            const colorArray    = new Float32Array(TRAIL_SEGMENTS * 2 * 3);
+
+            trailGeometry = new THREE.BufferGeometry();
+            trailGeometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
+            trailGeometry.setAttribute('color',    new THREE.BufferAttribute(colorArray, 3));
+
+            const indices = [];
+            for (let i = 0; i < TRAIL_SEGMENTS - 1; i++) {
+                const a = i * 2;
+                const b = a + 1;
+                const c = a + 2;
+                const d = a + 3;
+                indices.push(a, b, c, b, d, c);
+            }
+            trailGeometry.setIndex(indices);
+            trailGeometry.computeBoundingSphere();
+
+            const trailMaterial = new THREE.MeshBasicMaterial({
+                vertexColors: true,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide
+            });
+
+            trailMesh = new THREE.Mesh(trailGeometry, trailMaterial);
+            trailMesh.renderOrder = 0; // behind fox and obstacles
+            scene.add(trailMesh);
+        }
+
+        /* RIBBON TRAIL UPDATE */
+        function updateRibbonTrail(deltaMultiplier) {
+            if (!trailInitialized || !trailGeometry || !trailMesh || !foxPlayer) return;
+
+            // head position (fox head) with Y offset
+            const headPos = foxPlayer.position.clone();
+            headPos.y += TRAIL_Y_OFFSET;
+
+            // insert head at front of list
+            trailPoints.unshift(headPos);
+            if (trailPoints.length > TRAIL_SEGMENTS) {
+                trailPoints.pop();
+            }
+
+            // smooth the curve so it bends nicely when fox changes lanes
+            for (let i = 1; i < trailPoints.length; i++) {
+                trailPoints[i].lerp(trailPoints[i - 1], TRAIL_SMOOTH);
+            }
+
+            const positions = trailGeometry.attributes.position.array;
+            const colors    = trailGeometry.attributes.color.array;
+
+            const numColors = colorSchemes.length;
+            const floorPhase = score / 250;              // how far along the normal floor cycle we are
+            const trailPhase = (floorPhase + 1.0) % numColors; // shift by 1 so trail is "opposite" phase
+            const baseIndex = Math.floor(trailPhase) % numColors;
+            const nextIndex = (baseIndex + 1) % numColors;
+            const phaseT    = trailPhase - Math.floor(trailPhase);
+
+            // base color pair for head from reversed schemes (opposite direction to floor)
+            const baseColA = reverseColorSchemes[baseIndex].floor.clone();
+            const baseColB = reverseColorSchemes[nextIndex].floor.clone();
+            const headColor = baseColA.clone().lerp(baseColB, phaseT);
+
+            for (let i = 0; i < TRAIL_SEGMENTS - 1; i++) {
+                const tSeg = i / (TRAIL_SEGMENTS - 1); // 0 at head, 1 at tail
+
+                const pCurr = trailPoints[i];
+                const pNext = trailPoints[i + 1] || pCurr;
+
+                // Direction along trail
+                const dir = new THREE.Vector3().subVectors(pNext, pCurr);
+                const laneDir = new THREE.Vector3(0, 0, 1); // forward along +Z
+                let side = new THREE.Vector3().crossVectors(laneDir, dir);
+                if (side.lengthSq() < 1e-6) {
+                    side.set(1, 0, 0); // fallback if fox is going straight
+                } else {
+                    side.normalize();
+                }
+
+                // taper width toward tail
+                const width = THREE.MathUtils.lerp(TRAIL_BASE_WIDTH, TRAIL_MIN_WIDTH, tSeg);
+                const halfWidth = width * 0.5;
+                const offset = side.clone().multiplyScalar(halfWidth);
+
+                const leftPos  = pCurr.clone().add(offset);
+                const rightPos = pCurr.clone().sub(offset);
+
+                // push the whole ribbon behind the fox and stretch the tail farther back
+                const stretch = TRAIL_LENGTH * tSeg;
+                leftPos.z  -= (TRAIL_Z_OFFSET + stretch);
+                rightPos.z -= (TRAIL_Z_OFFSET + stretch);
+
+                const vi = i * 2;
+
+                positions[vi * 3 + 0] = leftPos.x;
+                positions[vi * 3 + 1] = leftPos.y;
+                positions[vi * 3 + 2] = leftPos.z;
+
+                positions[(vi + 1) * 3 + 0] = rightPos.x;
+                positions[(vi + 1) * 3 + 1] = rightPos.y;
+                positions[(vi + 1) * 3 + 2] = rightPos.z;
+
+                // smooth color transition along trail, cycling opposite to floor
+                const colorIndexFloat = (1.0 - tSeg) * (numColors - 1);
+                const colorIndex = Math.floor(colorIndexFloat);
+                const colorT = colorIndexFloat - colorIndex;
+                const idxA = THREE.MathUtils.clamp(colorIndex, 0, numColors - 1);
+                const idxB = THREE.MathUtils.clamp(idxA + 1, 0, numColors - 1);
+
+                const colA = reverseColorSchemes[idxA].floor.clone();
+                const colB = reverseColorSchemes[idxB].floor.clone();
+                const segColor = colA.lerp(colB, colorT);
+
+                // fade brightness toward tail so it doesn't look like a solid bar
+                const fadeFactor = THREE.MathUtils.lerp(1.0, 0.08, tSeg);
+                const r = segColor.r * fadeFactor;
+                const g = segColor.g * fadeFactor;
+                const b = segColor.b * fadeFactor;
+
+                colors[vi * 3 + 0] = r;
+                colors[vi * 3 + 1] = g;
+                colors[vi * 3 + 2] = b;
+
+                colors[(vi + 1) * 3 + 0] = r;
+                colors[(vi + 1) * 3 + 1] = g;
+                colors[(vi + 1) * 3 + 2] = b;
+            }
+
+            // copy last segment positions/colors to close the strip
+            const lastIndex = (TRAIL_SEGMENTS - 1) * 2;
+            const prevIndex = (TRAIL_SEGMENTS - 2) * 2;
+
+            positions[lastIndex * 3 + 0]     = positions[prevIndex * 3 + 0];
+            positions[lastIndex * 3 + 1]     = positions[prevIndex * 3 + 1];
+            positions[lastIndex * 3 + 2]     = positions[prevIndex * 3 + 2];
+            positions[(lastIndex + 1) * 3 + 0] = positions[(prevIndex + 1) * 3 + 0];
+            positions[(lastIndex + 1) * 3 + 1] = positions[(prevIndex + 1) * 3 + 1];
+            positions[(lastIndex + 1) * 3 + 2] = positions[(prevIndex + 1) * 3 + 2];
+
+            colors[lastIndex * 3 + 0]     = colors[prevIndex * 3 + 0];
+            colors[lastIndex * 3 + 1]     = colors[prevIndex * 3 + 1];
+            colors[lastIndex * 3 + 2]     = colors[prevIndex * 3 + 2];
+            colors[(lastIndex + 1) * 3 + 0] = colors[(prevIndex + 1) * 3 + 0];
+            colors[(lastIndex + 1) * 3 + 1] = colors[(prevIndex + 1) * 3 + 1];
+            colors[(lastIndex + 1) * 3 + 2] = colors[(prevIndex + 1) * 3 + 2];
+
+            trailGeometry.attributes.position.needsUpdate = true;
+            trailGeometry.attributes.color.needsUpdate = true;
+            if (trailGeometry.boundingSphere) trailGeometry.boundingSphere = null;
+            trailGeometry.computeBoundingSphere();
+        }
+
         function createObstacle(laneIndex) {
             if (!scene) return;
 
             const laneX = lanePositions[laneIndex];
             const startZ = -120;
-            const size = 2.6; // This is the base dimension (now the height)
+            const size = 2.6; // height
             const haloSize = 3.0;
 
-            const orbWidthRatio = 1.5; // adjust for your orb aspect
+            const orbWidthRatio = 1.5;
 
-            // Create halo with additive blending for glow effect
+            // Halo
             const haloGeo = new THREE.PlaneGeometry(haloSize, haloSize);
             const haloMat = new THREE.MeshBasicMaterial({
                 transparent: true,
@@ -611,10 +792,10 @@ canvas {
                 console.warn('Halo texture failed to load:', err);
             });
 
-            halo.renderOrder = 0;
+            halo.renderOrder = 1;
             scene.add(halo);
 
-            // Create orb (in front of halo)
+            // Orb
             const orbGeo = new THREE.PlaneGeometry(size * orbWidthRatio, size);
             const orbMat = new THREE.MeshBasicMaterial({
                 color:0xffffff,
@@ -638,172 +819,9 @@ canvas {
                 console.warn('Orb texture failed to load:', err);
             });
 
-            orb.renderOrder = 1;
+            orb.renderOrder = 2;
             obstacles.push(orb);
             scene.add(orb);
-        }
-
-        /* RIBBON TRAIL IMPLEMENTATION */
-
-        const TRAIL_SEGMENTS = 40;         // how many points (more = smoother)
-        const TRAIL_BASE_WIDTH = 1.6;      // max width at the fox
-        const TRAIL_MIN_WIDTH = 0.12;      // tail min width
-        const TRAIL_SMOOTH = 0.28;         // smoothing factor for internal smoothing
-        const TRAIL_Z_OFFSET = -1.3;        // push trail back from fox so it stays visually behind
-        const TRAIL_Y_OFFSET = 1.0
-        let trailPoints = [];
-        let trailGeometry, trailMesh;
-        let trailPositionsArray, trailColorsArray, trailIndexArray;
-        let trailInitialized = false;
-
-        function initRibbonTrail() {
-            const startPos = foxPlayer ? foxPlayer.position.clone() : new THREE.Vector3(0, FOX_BASE_HEIGHT, 5);
-            trailPoints = [];
-            for (let i = 0; i < TRAIL_SEGMENTS; i++) {
-                trailPoints.push(startPos.clone());
-            }
-
-            const vertexCount = TRAIL_SEGMENTS * 2;
-            trailPositionsArray = new Float32Array(vertexCount * 3); // x,y,z per vertex
-            trailColorsArray = new Float32Array(vertexCount * 3);    // r,g,b per vertex
-            trailIndexArray = [];
-
-            for (let i = 0; i < TRAIL_SEGMENTS - 1; i++) {
-                const a = i * 2;
-                const b = a + 1;
-                const c = (i + 1) * 2;
-                const d = c + 1;
-                trailIndexArray.push(a, b, c);
-                trailIndexArray.push(b, d, c);
-            }
-
-            trailGeometry = new THREE.BufferGeometry();
-            trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositionsArray, 3).setUsage(THREE.DynamicDrawUsage));
-            trailGeometry.setAttribute('color', new THREE.BufferAttribute(trailColorsArray, 3).setUsage(THREE.DynamicDrawUsage));
-            trailGeometry.setIndex(trailIndexArray);
-
-            const trailMat = new THREE.MeshBasicMaterial({
-                vertexColors: true,
-                side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 1.0,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                depthTest: true
-            });
-
-            trailMesh = new THREE.Mesh(trailGeometry, trailMat);
-            trailMesh.renderOrder = 0.5; // render early so the fox (renderOrder 5) draws on top
-            scene.add(trailMesh);
-
-            trailInitialized = true;
-        }
-
-        function updateRibbonTrail(deltaMultiplier) {
-            if (!trailInitialized || !foxPlayer) return;
-
-            // Use fox position as head, but push the entire ribbon slightly deeper (more negative z)
-            const currentPos = foxPlayer.position.clone();
-
-            // Insert a copy of the head position at the front of the point list
-            trailPoints.unshift(currentPos);
-
-            if (trailPoints.length > TRAIL_SEGMENTS) trailPoints.length = TRAIL_SEGMENTS;
-
-            // Smooth internal points to create natural lag & bend
-            for (let i = 1; i < trailPoints.length; i++) {
-                trailPoints[i].lerp(trailPoints[i - 1], TRAIL_SMOOTH);
-            }
-
-            // Fill up missing entries if any
-            if (trailPoints.length < TRAIL_SEGMENTS) {
-                const last = trailPoints[trailPoints.length - 1].clone();
-                for (let i = trailPoints.length; i < TRAIL_SEGMENTS; i++) trailPoints.push(last.clone());
-            }
-
-            // Determine trail color blend based on reversed color schemes and score
-            const numColors = colorSchemes.length;
-            let levelIndex = Math.floor(score / 250) % numColors;
-            // Indices into reversed array
-            const revLen = reverseColorSchemes.length;
-            const reverseIndex = (revLen - 1) - levelIndex;
-            const reverseNextIndex = (reverseIndex + 1) % revLen;
-            const t = (score % 250) / 250;
-
-            // Head color (current) and tail color (next) - both interpolated slightly by 't' so the ribbon shifts with score
-            const headA = reverseColorSchemes[reverseIndex].floor.clone();
-            const headB = reverseColorSchemes[reverseNextIndex].floor.clone();
-            const headColor = headA.clone().lerp(headB, t);
-
-            // For tail, pick the color one step further down the reversed list for a contrasting tail hue
-            const tailIndexA = (reverseIndex + 1) % revLen;
-            const tailIndexB = (reverseNextIndex + 1) % revLen;
-            const tailA = reverseColorSchemes[tailIndexA].floor.clone();
-            const tailB = reverseColorSchemes[tailIndexB].floor.clone();
-            const tailColor = tailA.clone().lerp(tailB, t);
-
-            // Now write vertex positions and per-vertex colors (smooth lerp from headColor -> tailColor along the ribbon)
-            const up = new THREE.Vector3(0, 1, 0);
-
-            for (let i = 0; i < TRAIL_SEGMENTS; i++) {
-                const p = trailPoints[i];
-
-                // direction from this point to the previous (gives tangent). If i==0 use vector toward camera slightly
-                let dir;
-                if (i === 0) {
-                    dir = trailPoints[0].clone().sub(trailPoints[1]);
-                } else {
-                    dir = trailPoints[i - 1].clone().sub(trailPoints[i]);
-                }
-                dir.normalize();
-
-                let left = new THREE.Vector3().crossVectors(up, dir).normalize();
-                if (left.lengthSq() < 0.0001) {
-                    left = new THREE.Vector3(1, 0, 0);
-                }
-
-                // width tapering
-                const tSeg = i / (TRAIL_SEGMENTS - 1);
-                const width = THREE.MathUtils.lerp(TRAIL_BASE_WIDTH, TRAIL_MIN_WIDTH, tSeg);
-
-                // compute positions and push the trail back in Z so it visually sits behind the fox
-                const leftPos = p.clone().add(left.clone().multiplyScalar(width * 0.5));
-                const rightPos = p.clone().add(left.clone().multiplyScalar(-width * 0.5));
-
-                // push both vertices back by a constant offset so the ribbon always reads behind the fox
-                leftPos.z -= TRAIL_Z_OFFSET;
-                rightPos.z -= TRAIL_Z_OFFSET;
-
-                const vi = i * 2;
-                trailPositionsArray[vi * 3 + 0] = leftPos.x;
-                trailPositionsArray[vi * 3 + 1] = leftPos.y;
-                trailPositionsArray[vi * 3 + 2] = leftPos.z;
-
-                trailPositionsArray[(vi + 1) * 3 + 0] = rightPos.x;
-                trailPositionsArray[(vi + 1) * 3 + 1] = rightPos.y;
-                trailPositionsArray[(vi + 1) * 3 + 2] = rightPos.z;
-
-                // color: smooth lerp from headColor -> tailColor based on tSeg, and fade brightness toward tail
-                const segColor = headColor.clone().lerp(tailColor, tSeg);
-                const fadeFactor = THREE.MathUtils.lerp(1.0, 0.06, tSeg); // gradual fade toward tail
-
-                const r = segColor.r * fadeFactor;
-                const g = segColor.g * fadeFactor;
-                const b = segColor.b * fadeFactor;
-
-                trailColorsArray[vi * 3 + 0] = r;
-                trailColorsArray[vi * 3 + 1] = g;
-                trailColorsArray[vi * 3 + 2] = b;
-
-                trailColorsArray[(vi + 1) * 3 + 0] = r;
-                trailColorsArray[(vi + 1) * 3 + 1] = g;
-                trailColorsArray[(vi + 1) * 3 + 2] = b;
-            }
-
-            trailGeometry.attributes.position.needsUpdate = true;
-            trailGeometry.attributes.color.needsUpdate = true;
-            if (trailGeometry.boundingSphere) trailGeometry.boundingSphere = null;
-            trailGeometry.computeBoundingSphere();
         }
 
         /* GAME CONTROL */
@@ -812,14 +830,14 @@ canvas {
                 init();
             }
 
-            // mark that the initial start has occurred (subsequent starts must use restart button)
-            firstRun = false;
-
             if (bgm && bgm.paused) {
                 bgm.play().catch(error => {
                     console.warn("Audio playback failed (usually a mobile browser restriction):", error.message);
                 });
             }
+
+            // after the very first successful start, we no longer allow any-key restarts
+            if (firstRun) firstRun = false;
 
             gameActive = true;
             score = 0;
@@ -828,7 +846,6 @@ canvas {
 
             if (foxPlayer) foxPlayer.position.x = lanePositions[currentLane];
 
-            // Clear obstacles
             obstacles.forEach(o=>{
                 try {
                     scene.remove(o);
@@ -857,13 +874,8 @@ canvas {
 
         /* MOVE FOX */
         function moveFox(newLane){
-            if (!gameActive) {
-                // if the game hasn't started but it's still the first run, starting is allowed via key/touch
-                if (firstRun) {
-                    startGame();
-                }
-                return;
-            }
+            // no starting the game from lane changes anymore
+            if (!gameActive) return;
             if (!foxPlayer) return;
             if (newLane < 0 || newLane > 2) return;
             if (newLane === currentLane) return;
@@ -957,8 +969,8 @@ canvas {
                 if (gameOverScreen) gameOverScreen.style.opacity = obj.o;
             }).start();
 
-            // After game over, ensure keys/taps do NOT restart the game (must press restart button)
-            // (firstRun is already false after the first start)
+            // After game over, keys/taps will NOT restart the game.
+            // Player must click the RESTART button.
         }
 
         /* INPUT HANDLING */
@@ -974,18 +986,16 @@ canvas {
 
             if (e.target && e.target.tagName === 'INPUT') return;
 
-            // If game isn't active and this is the very first run, starting via any key is allowed.
+            // If game isn't active and this is the very first run, ANY key can start it.
             if (!gameActive) {
                 if (firstRun) {
-                    // Start on any key
                     startGame();
-                    return;
                 }
-                // otherwise ignore keys (restart must use restart button)
+                // after first run, ignore keys while gameInactive; restart must use button
                 return;
             }
 
-            // In-game controls
+            // In-game controls only if gameActive
             if (e.code === 'KeyA' || e.code === 'ArrowLeft') moveFox(currentLane - 1);
             if (e.code === 'KeyD' || e.code === 'ArrowRight') moveFox(currentLane + 1);
         }
@@ -997,7 +1007,7 @@ canvas {
             const screenWidth = window.innerWidth;
 
             if (!gameActive) {
-                // start only if firstRun (initial start)
+                // Touch start only allowed on very first run
                 if (firstRun) {
                     startGame();
                 }
@@ -1041,8 +1051,8 @@ canvas {
             createFox();
             createTrack();
 
-            // Delay creating the ribbon until fox is ready in scene
-            setTimeout(()=>{
+            // delay a bit so fox is in the scene before creating the ribbon
+            setTimeout(() => {
                 if (!trailInitialized) initRibbonTrail();
             }, 50);
 
@@ -1052,7 +1062,7 @@ canvas {
 
             const restartBtn = document.getElementById('restart-btn');
             if (restartBtn) restartBtn.addEventListener('click', () => {
-                // restart via button — allowed anytime after game over
+                // restart is ONLY allowed via this button
                 startGame();
             });
             const leaderboardBtn = document.getElementById('leaderboard-btn');
@@ -1096,7 +1106,7 @@ canvas {
 
                 updateFloorAndBackground();
 
-                // Update ribbon trail (do this before billboard lookAt so ribbon uses latest fox position)
+                // Update the ribbon trail while fox is running
                 updateRibbonTrail(deltaMultiplier);
 
                 if (camera) {
@@ -1104,18 +1114,9 @@ canvas {
                         if (obs.userData && obs.userData.billboard && obs.lookAt) {
                             obs.lookAt(camera.position);
                         }
-                        if (obs.userData.halo && obs.userData.halo.lookAt) {
+                        if (obs.userData && obs.userData.halo && obs.userData.halo.lookAt) {
                             obs.userData.halo.lookAt(camera.position);
                         }
-                    }
-                }
-            } else {
-                // keep trail visually consistent when idle (but do not auto-start)
-                if (trailInitialized && foxPlayer) {
-                    trailPoints.unshift(foxPlayer.position.clone());
-                    if (trailPoints.length > TRAIL_SEGMENTS) trailPoints.length = TRAIL_SEGMENTS;
-                    for (let i = 1; i < trailPoints.length; i++) {
-                        trailPoints[i].lerp(trailPoints[i - 1], TRAIL_SMOOTH);
                     }
                 }
             }
@@ -1155,7 +1156,3 @@ canvas {
     </script>
 </body>
 </html>
-
-
-
-
