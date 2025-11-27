@@ -697,8 +697,8 @@ canvas {
 
                 // push the whole ribbon behind the fox and stretch the tail farther back
                 const stretch = TRAIL_LENGTH * tSeg;
-                leftPos.z  -= (TRAIL_Z_OFFSET + stretch);
-                rightPos.z -= (TRAIL_Z_OFFSET + stretch);
+                leftPos.z  += (TRAIL_Z_OFFSET + stretch);
+                rightPos.z += (TRAIL_Z_OFFSET + stretch);
 
                 const vi = i * 2;
 
@@ -1156,3 +1156,4 @@ canvas {
     </script>
 </body>
 </html>
+
