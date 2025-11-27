@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Quantum Fox: Endless Runner (Time-Based Spawning)</title>
+<title>Quantum Fox: Endless Runner</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/23.1.1/tween.umd.js"></script>
@@ -245,8 +245,15 @@ canvas {
         ];
         let currentColorIndex = 0;
 
-        // Note: Using a dummy firebaseConfig since the real one is context-dependent
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const firebaseConfig = {
+            apiKey: "AIzaSyBgfoQLeOOqbKBuM69SO88jhCpfwrz_koo",
+            authDomain: "qfox-29287.firebaseapp.com",
+            projectId: "qfox-29287",
+            storageBucket: "qfox-29287.firebaseapp.com",
+            messagingSenderId: "778217166086",
+            appId: "1:778217166086:web:1480312c499fdec6aafa87",
+            measurementId: "G-VGEY7GV2QD"
+        };
 
         async function initFirebase() {
             try {
@@ -254,12 +261,7 @@ canvas {
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (token) {
-                    await signInWithCustomToken(auth, token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                await signInAnonymously(auth);
 
                 onAuthStateChanged(auth, (currentUser) => {
                     if (currentUser) {
@@ -334,14 +336,13 @@ canvas {
             if (isFirebaseReady && user) {
                 try {
                     const leaderboardRef = collection(db, 'leaderboard');
-                    // We only need to check the top 1000 scores to see if the new score qualifies
                     const lowScoreQuery = query(leaderboardRef, orderBy('score', 'desc'), limit(1000));
                     const querySnapshot = await getDocs(lowScoreQuery);
 
                     let lowestTopScore = 0;
-                    if (!querySnapshot.empty && querySnapshot.size >= 1000) {
-                        // The last document in a descending query is the lowest score
-                        lowestTopScore = querySnapshot.docs[querySnapshot.size - 1].data().score || 0;
+                    if (!querySnapshot.empty) {
+                        const docs = querySnapshot.docs;
+                        lowestTopScore = docs[docs.length - 1].data().score || 0;
                     }
 
                     if (finalScore > lowestTopScore || querySnapshot.size < 1000) {
@@ -385,10 +386,7 @@ canvas {
 
             if (isFirebaseReady && user) {
                 try {
-                    // Public data storage for the leaderboard
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                    const leaderboardRef = collection(db, `artifacts/${appId}/public/data/leaderboard`);
-
+                    const leaderboardRef = collection(db, 'leaderboard');
                     await addDoc(leaderboardRef, {
                         score: score,
                         initials: initials,
@@ -435,17 +433,13 @@ canvas {
             list.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
 
             if (!isFirebaseReady) {
-                list.innerHTML = 'Connect to the internet to view the leaderboard.';
+                list.innerHTML = 'Firebase not ready.';
                 return;
             }
 
             try {
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                const leaderboardRef = collection(db, `artifacts/${appId}/public/data/leaderboard`);
-                
-                // Fetch top 100 scores
-                // NOTE: We rely on sorting in memory to avoid Firestore index errors.
-                const q = query(leaderboardRef);
+                const leaderboardRef = collection(db, 'leaderboard');
+                const q = query(leaderboardRef, orderBy('score', 'desc'), limit(100));
                 const snapshot = await getDocs(q);
 
                 if (snapshot.empty) {
@@ -453,37 +447,25 @@ canvas {
                     return;
                 }
 
-                // Sort scores in memory (Required by the instructions to avoid orderBy errors)
-                let scores = [];
-                snapshot.docs.forEach(docSnap => {
-                    const data = docSnap.data();
-                    scores.push({
-                        id: docSnap.id,
-                        score: data.score || 0,
-                        initials: data.initials || '???',
-                        uid: data.uid,
-                    });
-                });
-
-                scores.sort((a, b) => b.score - a.score);
-                scores = scores.slice(0, 100); // Limit to top 100
-
                 let html = '';
-                scores.forEach((data, index) => {
+                snapshot.docs.forEach((docSnap, index) => {
+                    const data = docSnap.data();
                     const rank = index + 1;
+                    const initials = data.initials || '???';
+                    const scoreVal = data.score || 0;
                     const isMe = (user && data.uid === user.uid) ? 'color:#fcd34d; font-weight:bold;' : '';
 
                     html += `<div class="leaderboard-entry" style="${isMe}">
                         <span class="rank">${rank}</span>
-                        <span class="initials">${data.initials}</span>
-                        <span class="score">${data.score.toLocaleString()}</span>
+                        <span class="initials">${initials}</span>
+                        <span class="score">${scoreVal.toLocaleString()}</span>
                     </div>`;
                 });
 
                 list.innerHTML = html;
             } catch (error) {
                 console.error("Leaderboard error:", error);
-                list.innerHTML = `Error loading leaderboard.`;
+                list.innerHTML = `Error: ${error.message}`;
             }
         }
 
@@ -515,20 +497,15 @@ canvas {
         let lanePositions = [-3.5, 0, 3.5];
         let currentLane = 1;
         let obstacles = [];
-        
-        // REFACTORED: Time accumulator for spawning (in seconds)
-        let obstacleSpawnTimeAccumulator = 0; 
-        const MIN_SPAWN_INTERVAL = 0.3; // Fastest spawn interval (seconds)
-        const MAX_SPAWN_INTERVAL = 1.2; // Slowest spawn interval (seconds)
-
-        // UPDATED: Increased base speed for better feel on 60Hz and faster machines
-        const BASE_GAME_SPEED = 25.0; // Units per second
-        const SPEED_INCREASE_RATE = 0.036; // Increase per second
-        let gameSpeed = BASE_GAME_SPEED;
-
+        let obstacleSpawnTimer = 0;
+        let gameSpeed = 0.25;
+        const BASE_GAME_SPEED = 0.25;
+        const SPEED_INCREASE_RATE = 0.0006;
         let runningTime = 0;
         const FOX_BASE_HEIGHT = 1.2;
-        let lastTime = performance.now(); // Used for delta time calculation
+        let lastTime = performance.now();
+        const TARGET_FPS = 60;
+        const FRAME_TIME = 1000 / TARGET_FPS;
 
         const container = document.getElementById('game-container');
         const scoreDisplay = document.getElementById('score-display');
@@ -601,10 +578,15 @@ canvas {
 
             const laneX = lanePositions[laneIndex];
             const startZ = -120;
-            const size = 2.6; 
+            const size = 2.6; // This is the base dimension (now the height)
             const haloSize = 3.0;
             
-            const orbWidthRatio = 1.5; 
+            // --- FIX START: Adjust the aspect ratio for the orb's width ---
+            // If the orb image is wider than it is tall, this ratio will be > 1.
+            // Formula: Image Width / Image Height
+            // Example: If image is 768px wide and 512px tall, ratio is 1.5.
+            const orbWidthRatio = 1.5; // Changed from 1.2 to 1.5 for a wider orb. ADJUST THIS VALUE.
+            // --- FIX END ---
 
             // Create halo with additive blending for glow effect
             const haloGeo = new THREE.PlaneGeometry(haloSize, haloSize);
@@ -632,6 +614,8 @@ canvas {
             scene.add(halo);
 
             // Create orb (in front of halo)
+            // PlaneGeometry(width, height)
+            // We set the height to 'size' and calculate the necessary width using the ratio.
             const orbGeo = new THREE.PlaneGeometry(size * orbWidthRatio, size); 
             const orbMat = new THREE.MeshBasicMaterial({
                 color:0xffffff,
@@ -667,7 +651,6 @@ canvas {
             }
 
             if (bgm && bgm.paused) {
-                // Must interact with the document first before playing media in some browsers
                 bgm.play().catch(error => {
                     console.warn("Audio playback failed (usually a mobile browser restriction):", error.message);
                 });
@@ -677,11 +660,9 @@ canvas {
             score = 0;
             gameSpeed = BASE_GAME_SPEED;
             currentLane = 1;
-            obstacleSpawnTimeAccumulator = 0; // Reset time accumulator
 
             if (foxPlayer) foxPlayer.position.x = lanePositions[currentLane];
 
-            // Cleanup objects
             obstacles.forEach(o=>{
                 try {
                     scene.remove(o);
@@ -691,6 +672,7 @@ canvas {
                 } catch(e){}
             });
             obstacles = [];
+            obstacleSpawnTimer = 0;
 
             const scoreEl = document.getElementById('score-display');
             if (scoreEl) scoreEl.textContent = `Score: ${score}`;
@@ -727,19 +709,15 @@ canvas {
                 .start();
         }
 
-        /* UPDATE OBSTACLES (FULLY Framerate Independent) */
-        function updateObstacles(deltaTimeSeconds){
+        /* UPDATE OBSTACLES */
+        function updateObstacles(deltaMultiplier){
             if (!foxPlayer) return;
 
-            // 1. SPEED INCREASE (Time-based)
-            gameSpeed += SPEED_INCREASE_RATE * deltaTimeSeconds; 
+            gameSpeed += SPEED_INCREASE_RATE * deltaMultiplier;
 
-            // 2. OBSTACLE MOVEMENT (Time-based)
             for (let i = obstacles.length - 1; i >= 0; i--){
                 const obs = obstacles[i];
-                
-                // Movement is calculated as: Speed (units/sec) * DeltaTime (sec)
-                obs.position.z += gameSpeed * deltaTimeSeconds;
+                obs.position.z += gameSpeed * deltaMultiplier;
 
                 // Update halo position
                 if (obs.userData.halo) {
@@ -751,7 +729,6 @@ canvas {
                 const obsZ = obs.position.z;
                 const collisionRange = 0.9;
 
-                // Collision Check
                 if (obsZ >= foxZ - collisionRange && obsZ <= foxZ + collisionRange) {
                     if (obs.userData.lane === currentLane) {
                         const foxX = foxPlayer.position.x;
@@ -764,7 +741,6 @@ canvas {
                     }
                 }
 
-                // Scoring Check
                 if (obsZ > foxZ + 2 && !obs.userData.scored) {
                     obs.userData.scored = true;
                     score += 10;
@@ -772,7 +748,6 @@ canvas {
                     if (scoreEl) scoreEl.textContent = `Score: ${score}`;
                 }
 
-                // Cleanup Check
                 if (obsZ > 80) {
                     try {
                         scene.remove(obs);
@@ -784,23 +759,12 @@ canvas {
                 }
             }
 
-            // 3. SPANNING LOGIC (Time-based, fully independent of frame rate)
-            obstacleSpawnTimeAccumulator += deltaTimeSeconds;
-            
-            // Calculate current interval based on game speed (tends toward MIN_SPAWN_INTERVAL)
-            // The speed factor determines the percentage between MAX and MIN.
-            const speedFactor = (gameSpeed - BASE_GAME_SPEED) / (BASE_GAME_SPEED * 5); // 5x speed to reach fastest spawn rate
-            const spawnRange = MAX_SPAWN_INTERVAL - MIN_SPAWN_INTERVAL;
-            
-            const currentSpawnIntervalSeconds = Math.max(
-                MIN_SPAWN_INTERVAL, 
-                MAX_SPAWN_INTERVAL - (spawnRange * Math.min(1, speedFactor))
-            ); 
+            obstacleSpawnTimer++;
+            const spawnRate = Math.max(18, 70 - Math.floor((gameSpeed - BASE_GAME_SPEED) * 140));
 
-            if (obstacleSpawnTimeAccumulator >= currentSpawnIntervalSeconds) {
+            if (obstacleSpawnTimer >= spawnRate) {
                 createObstacle(Math.floor(Math.random()*3));
-                // Subtract the interval instead of resetting to 0 to preserve timing accuracy
-                obstacleSpawnTimeAccumulator -= currentSpawnIntervalSeconds; 
+                obstacleSpawnTimer = 0;
             }
         }
 
@@ -924,34 +888,25 @@ canvas {
             requestAnimationFrame(animate);
 
             const currentTime = performance.now();
-            // Calculate delta time in seconds
-            const deltaTimeSeconds = (currentTime - lastTime) / 1000;
+            const deltaTime = currentTime - lastTime;
             lastTime = currentTime;
-            
-            // Limit delta time to prevent physics explosions on backgrounded tabs or massive lag spikes
-            // Clamping is essential for stability.
-            const clampedDelta = Math.min(deltaTimeSeconds, 0.1); 
+            const deltaMultiplier = deltaTime / FRAME_TIME;
 
             TWEEN.update();
 
             if (gameActive) {
-                // Pass seconds to the update function for framerate independence
-                updateObstacles(clampedDelta); 
-                
-                // Use a factor of seconds for smooth time-based animation
-                runningTime += 6 * clampedDelta; 
+                updateObstacles(deltaMultiplier);
+                runningTime += 0.11 * deltaMultiplier;
 
-                if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime) * 0.1;
+                if (foxPlayer) foxPlayer.position.y = FOX_BASE_HEIGHT + Math.sin(runningTime * 5) * 0.1;
 
                 if (floorTexture) {
-                    // Floor texture offset also uses speed and delta time
-                    floorTexture.offset.y += gameSpeed * 0.02 * clampedDelta;
+                    floorTexture.offset.y += gameSpeed * 0.02 * deltaMultiplier;
                 }
 
                 updateFloorAndBackground();
 
                 if (camera) {
-                    // Billboard effect (objects always face the camera)
                     for (let obs of obstacles) {
                         if (obs.userData && obs.userData.billboard && obs.lookAt) {
                             obs.lookAt(camera.position);
@@ -998,3 +953,4 @@ canvas {
     </script>
 </body>
 </html>
+
